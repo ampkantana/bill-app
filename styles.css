@@ -1,9 +1,9 @@
 :root {
-  --bg: #f1eee6;
+  --bg: #ecebe2;
   --panel: #fffdfa;
-  --panel-soft: #f7f2ec;
-  --line: #ded5cc;
-  --line-strong: #b8afa5;
+  --panel-soft: #e1dcd5;
+  --line: #cfc9c0;
+  --line-strong: #5f625f;
   --ink: #393b39;
   --muted: #77736f;
   --accent: #6f7a65;
@@ -25,7 +25,7 @@
 body {
   margin: 0;
   color: var(--ink);
-  background: #e8edf3;
+  background: var(--bg);
   font-family: "Avenir Next", "Sarabun", "Noto Sans Thai", Tahoma, sans-serif;
 }
 
@@ -223,6 +223,10 @@ label {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.grid .span-2 {
+  grid-column: span 2;
+}
+
 .card {
   padding: 16px;
   background: var(--panel);
@@ -348,16 +352,28 @@ th.num {
 }
 
 .document {
-  padding: 26px;
+  width: min(210mm, 100%);
+  min-height: 297mm;
+  margin: 0 auto;
+  padding: 24mm 18mm;
   background: var(--bg);
-  border: 1px solid var(--line);
+  border: 0;
+  box-shadow: var(--shadow);
+}
+
+.document-label {
+  margin: 0 0 5px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .document h2 {
   margin: 0;
   color: #666967;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 48px;
+  font-size: 54px;
   font-weight: 400;
   text-transform: uppercase;
 }
@@ -366,14 +382,169 @@ th.num {
   display: flex;
   justify-content: space-between;
   gap: 20px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--line-strong);
+  align-items: start;
+  margin-bottom: 34px;
 }
 
 .document-box {
   padding: 14px;
   background: rgba(255, 255, 255, 0.33);
   border: 1px solid var(--line);
+}
+
+.document-parties {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 24px;
+  margin-bottom: 34px;
+  border: 0;
+}
+
+.document-party {
+  min-width: 0;
+  padding: 0;
+}
+
+.document-party + .document-party {
+  border-left: 0;
+}
+
+.document-party p {
+  margin: 0 0 7px;
+}
+
+.document-party p,
+.payment-panel p {
+  line-height: 1.55;
+}
+
+.project-label,
+.customer-label,
+.seller-label {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.project-name,
+.customer-name,
+.seller-name {
+  color: #4f5555;
+  font-size: 22px;
+}
+
+.document-details {
+  display: grid;
+  gap: 6px;
+  margin: 16px 0 0;
+}
+
+.document-details div {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.document-details dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.document-details dd {
+  min-width: 0;
+  margin: 0;
+  color: #4f5555;
+}
+
+.document-meta {
+  justify-self: end;
+  min-width: 220px;
+  text-align: right;
+}
+
+.payment-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 34px;
+  padding: 18px 24px;
+  background: #ded8d1;
+  border: 0;
+}
+
+.note-box {
+  margin-top: 20px;
+}
+
+.qr-code {
+  width: 118px;
+  height: 118px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+
+.document .table-wrap {
+  overflow: visible;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.document table {
+  background: transparent;
+}
+
+.document th {
+  color: #464a4a;
+  background: transparent;
+  border-top: 1.5px solid var(--line-strong);
+  border-bottom: 1.5px solid var(--line-strong);
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.document td {
+  border-bottom: 0;
+  font-size: 16px;
+}
+
+.document tbody tr:last-child td {
+  padding-bottom: 26px;
+}
+
+.document .summary {
+  border-top: 1.5px solid var(--line-strong);
+}
+
+.document .summary th,
+.document .summary td {
+  border-top: 0;
+  border-bottom: 0;
+}
+
+.qr-setting {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.qr-setting p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.qr-setting-preview {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
 }
 
 .summary {
@@ -390,6 +561,11 @@ th.num {
   border-radius: 8px;
 }
 
+.empty.compact {
+  padding: 18px;
+  min-width: 112px;
+}
+
 .timeline {
   display: grid;
   gap: 10px;
@@ -399,6 +575,68 @@ th.num {
   padding: 12px;
   background: var(--panel-soft);
   border-left: 3px solid var(--accent);
+}
+
+.bar-chart {
+  display: grid;
+  gap: 14px;
+}
+
+.bar-item {
+  display: grid;
+  gap: 6px;
+}
+
+.bar-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.bar-track {
+  height: 12px;
+  overflow: hidden;
+  background: var(--accent-soft);
+  border-radius: 999px;
+}
+
+.bar-track span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+}
+
+.filter-card {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.data-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.data-tools p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.file-button {
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+}
+
+.file-button input {
+  display: none;
 }
 
 .mobile-tabs {
@@ -445,12 +683,56 @@ th.num {
     display: grid;
   }
 
+  .document {
+    min-height: auto;
+    padding: 18px;
+  }
+
+  .document h2 {
+    font-size: 40px;
+  }
+
+  .payment-panel,
+  .qr-setting,
+  .document-parties {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .document-party + .document-party {
+    border-top: 0;
+    border-left: 0;
+  }
+
+  .document-meta {
+    justify-self: start;
+    text-align: left;
+  }
+
+  .document-details div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .qr-setting-preview {
+    justify-items: start;
+  }
+
   .grid.cols-2,
   .grid.cols-3,
   .grid.cols-4,
   .split,
+  .filter-card,
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .grid .span-2 {
+    grid-column: auto;
+  }
+
+  .data-tools {
+    display: grid;
   }
 
   .line-row {
@@ -501,6 +783,11 @@ th.num {
 }
 
 @media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
   body {
     background: #fff;
   }
@@ -519,7 +806,20 @@ th.num {
   }
 
   .document {
+    width: 210mm;
     min-height: 297mm;
+    padding: 20mm 16mm;
     border: 0;
+    box-shadow: none;
+  }
+
+  .document .table-wrap {
+    overflow: visible;
+  }
+
+  .document tr,
+  .document .payment-panel,
+  .document .document-box {
+    break-inside: avoid;
   }
 }
