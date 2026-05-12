@@ -51,11 +51,12 @@ globalThis.__exports = {
   deletePayment,
   deleteReceipt,
   paymentInfoHtml,
+  documentPrintTitle,
   renderDocumentLabelInputs,
   renderOriginalDocumentItems,
 };`, sandbox);
 
-const { defaultState, state, documentTypeMeta, documentDateHtml, documentCustomerHtml, documentSellerHtml, documentNoteHtml, documentLabel, documentNumberHtml, deleteCustomer, deleteQuote, deleteInvoice, deletePayment, deleteReceipt, paymentInfoHtml, renderDocumentLabelInputs, renderOriginalDocumentItems } = sandbox.__exports;
+const { defaultState, state, documentTypeMeta, documentDateHtml, documentCustomerHtml, documentSellerHtml, documentNoteHtml, documentLabel, documentNumberHtml, deleteCustomer, deleteQuote, deleteInvoice, deletePayment, deleteReceipt, paymentInfoHtml, documentPrintTitle, renderDocumentLabelInputs, renderOriginalDocumentItems } = sandbox.__exports;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 assert.equal(defaultState.settings.qrCodeImage, "");
@@ -65,6 +66,9 @@ assert.equal(documentLabel("billTo"), "Bill To");
 assert.deepEqual(plain(documentTypeMeta("quote")), { title: "QUOTATION", label: "Quotation" });
 assert.deepEqual(plain(documentTypeMeta("invoice")), { title: "INVOICE", label: "Invoice" });
 assert.deepEqual(plain(documentTypeMeta("receipt")), { title: "RECEIPT", label: "Receipt" });
+assert.equal(documentPrintTitle("invoice", { issueDate: "2026-05-12", projectName: "Tone club" }, { name: "K.GRING TONE CLUB" }), "2026.05.12InvoiceToneclub");
+assert.equal(documentPrintTitle("quote", { issueDate: "2026-05-12" }, { name: "K.GRING TONE CLUB" }), "2026.05.12QuotationKGRINGTONECLUB");
+assert.equal(documentPrintTitle("receipt", { issueDate: "2026-05-12", receiptNumber: "RC-2026-0001" }, null), "2026.05.12ReceiptRC20260001");
 
 assert.match(documentNumberHtml("quote", { quoteNumber: "QT-2026-0001" }), /QT-2026-0001/);
 assert.match(documentNumberHtml("invoice", { invoiceNumber: "INV-2026-0001" }), /INV-2026-0001/);
@@ -187,6 +191,8 @@ assert.match(source, /syncInvoiceFromQuote/);
 assert.match(source, /data-receipt-invoice/);
 assert.match(source, /data-action="print-document"/);
 assert.match(source, /function printDocument/);
+assert.match(source, /documentPrintTitle/);
+assert.match(source, /document.title = printTitle/);
 assert.doesNotMatch(source, /onclick="window\.print\(\)"/);
 assert.doesNotMatch(cssSource, /classic-bill::before/);
 assert.doesNotMatch(cssSource, /classic-bill::after/);

@@ -499,6 +499,14 @@ function documentTypeMeta(type) {
   }[type] || { title: "DOCUMENT", label: "Document" };
 }
 
+function documentPrintTitle(type, doc = {}, customer = null) {
+  const typeName = documentTypeMeta(type).label;
+  const datePart = String(doc.issueDate || today()).replaceAll("-", ".");
+  const nameSource = doc.projectName || customer?.name || doc.quoteNumber || doc.invoiceNumber || doc.receiptNumber || "Document";
+  const namePart = String(nameSource).replace(/[^A-Za-z0-9ก-๙]/g, "");
+  return `${datePart}${typeName}${namePart || "Document"}`;
+}
+
 function documentLabel(key) {
   const labels = state.settings.documentLabels || {};
   return Object.prototype.hasOwnProperty.call(labels, key) ? String(labels[key]).trim() : DEFAULT_DOCUMENT_LABELS[key] || "";
@@ -1692,6 +1700,7 @@ function renderDocument(type, id) {
   const base = type === "receipt" ? invoiceForReceipt : doc;
   const customer = customerById(doc.customerId);
   const meta = documentTypeMeta(type);
+  const printTitle = documentPrintTitle(type, base || doc, customer);
   page(
     meta.title,
     "Preview / print เอกสาร",
@@ -1727,20 +1736,28 @@ function renderDocument(type, id) {
   document.querySelector("[data-receipt-invoice]")?.addEventListener("click", () => openReceiptForInvoice(doc.id));
   document.querySelector("[data-delete-invoice]")?.addEventListener("click", () => deleteInvoice(doc.id));
   document.querySelector("[data-delete-receipt]")?.addEventListener("click", () => deleteReceipt(doc.id));
-  document.querySelector('[data-action="print-document"]').addEventListener("click", printDocument);
+  document.querySelector('[data-action="print-document"]').addEventListener("click", () => printDocument(printTitle));
 }
 
-function printDocument() {
+function printDocument(printTitle = "Kantana Billing ERP") {
   const printable = document.querySelector(".classic-bill");
   if (!printable) {
     alert("ยังไม่พบเอกสารสำหรับพิมพ์");
     return;
   }
+  const originalTitle = document.title;
+  document.title = printTitle;
+  const cleanupPrintTitle = () => {
+    document.body.classList.remove("is-printing-document");
+    document.title = originalTitle;
+    window.removeEventListener("afterprint", cleanupPrintTitle);
+  };
+  window.addEventListener("afterprint", cleanupPrintTitle);
   document.body.classList.add("is-printing-document");
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       window.print();
-      setTimeout(() => document.body.classList.remove("is-printing-document"), 600);
+      setTimeout(cleanupPrintTitle, 1200);
     });
   });
 }
