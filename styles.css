@@ -1270,6 +1270,9 @@ th.num {
 
   html,
   body {
+    width: 210mm;
+    height: 297mm;
+    overflow: hidden;
     background: var(--page-bg);
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
@@ -1287,22 +1290,26 @@ th.num {
     display: block;
     padding: 0;
     width: 210mm;
+    height: 297mm;
     min-height: 297mm;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .document {
     width: 210mm;
+    height: 297mm;
     min-height: 297mm;
     max-height: 297mm;
     border: 0;
     box-shadow: none;
     overflow: hidden;
+    break-after: avoid;
+    page-break-after: avoid;
   }
 
   .classic-bill {
     --print-fit-font: 11px;
-    padding: 24mm 14mm 18mm;
+    padding: 20mm 14mm 14mm;
     background: linear-gradient(180deg, var(--page-bg) 0%, var(--bg) 100%);
     font-size: var(--print-fit-font);
     line-height: 1.24;
@@ -1311,18 +1318,18 @@ th.num {
   }
 
   .classic-bill-head {
-    min-height: 126px;
-    margin-bottom: 16px;
+    min-height: 112px;
+    margin-bottom: 14px;
   }
 
   .classic-bill h2 {
     padding-top: 0;
-    font-size: 58px;
+    font-size: 56px;
     line-height: 1.05;
   }
 
   .bill-date-block {
-    top: 72px;
+    top: 66px;
     width: 190px;
     font-size: 12px;
     line-height: 1.22;
@@ -1330,12 +1337,12 @@ th.num {
 
   .bill-party-freeform {
     gap: 54px;
-    margin-bottom: 28px;
+    margin-bottom: 20px;
     padding-bottom: 10px;
   }
 
   .bill-party {
-    min-height: 156px;
+    min-height: 126px;
   }
 
   .classic-bill .seller-label,
@@ -1447,7 +1454,7 @@ th.num {
   }
 
   .bill-row-filler:last-child td {
-    height: 270px;
+    height: 230px;
     padding-bottom: 4px;
   }
 
@@ -1475,8 +1482,181 @@ th.num {
 
   .bill-payment-qr,
   .qr-code {
-    width: 78px;
-    height: 78px;
+    width: 70px;
+    height: 70px;
+  }
+
+  .document-fit-spacious .bill-row-filler:last-child td {
+    height: 254px;
+  }
+
+  .document-fit-compact {
+    padding-top: 16mm;
+    padding-bottom: 10mm;
+  }
+
+  .document-fit-compact .classic-bill-head {
+    min-height: 98px;
+    margin-bottom: 10px;
+  }
+
+  .document-fit-compact h2 {
+    font-size: 50px;
+  }
+
+  .document-fit-compact .bill-date-block {
+    top: 58px;
+    font-size: 11px;
+  }
+
+  .document-fit-compact .bill-party-freeform {
+    margin-bottom: 14px;
+  }
+
+  .document-fit-compact .bill-party {
+    min-height: 104px;
+  }
+
+  .document-fit-compact .classic-bill .seller-name,
+  .document-fit-compact .classic-bill .customer-name,
+  .document-fit-compact .seller-name,
+  .document-fit-compact .customer-name {
+    font-size: 15px;
+  }
+
+  .document-fit-compact .classic-bill .document-details dt,
+  .document-fit-compact .classic-bill .document-details dd,
+  .document-fit-compact .document-details dt,
+  .document-fit-compact .document-details dd {
+    font-size: 10px;
+    line-height: 1.2;
+  }
+
+  .document-fit-compact .bill-line-table th {
+    height: 28px;
+    font-size: 9.5px;
+  }
+
+  .document-fit-compact .bill-line-table td {
+    height: 28px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+    font-size: 9px;
+    line-height: 1.1;
+  }
+
+  .document-fit-compact .bill-row-filler:last-child td {
+    height: 118px;
+  }
+
+  .document-fit-dense,
+  .document-fit-micro {
+    padding: 12mm 12mm 8mm;
+  }
+
+  .document-fit-dense .classic-bill-head,
+  .document-fit-micro .classic-bill-head {
+    min-height: 78px;
+    margin-bottom: 8px;
+  }
+
+  .document-fit-dense h2,
+  .document-fit-micro h2 {
+    font-size: 42px;
+  }
+
+  .document-fit-dense .bill-date-block,
+  .document-fit-micro .bill-date-block {
+    top: 46px;
+    width: 172px;
+    font-size: 9.5px;
+    line-height: 1.12;
+  }
+
+  .document-fit-dense .bill-party-freeform,
+  .document-fit-micro .bill-party-freeform {
+    gap: 34px;
+    margin-bottom: 10px;
+    padding-bottom: 4px;
+  }
+
+  .document-fit-dense .bill-party,
+  .document-fit-micro .bill-party {
+    min-height: 82px;
+  }
+
+  .document-fit-dense .seller-label,
+  .document-fit-dense .customer-label,
+  .document-fit-micro .seller-label,
+  .document-fit-micro .customer-label {
+    margin-bottom: 3px;
+    font-size: 10.5px;
+  }
+
+  .document-fit-dense .seller-name,
+  .document-fit-dense .customer-name,
+  .document-fit-micro .seller-name,
+  .document-fit-micro .customer-name {
+    font-size: 13px;
+    line-height: 1.15;
+  }
+
+  .document-fit-dense .document-details,
+  .document-fit-micro .document-details {
+    margin-top: 8px;
+  }
+
+  .document-fit-dense .document-details dt,
+  .document-fit-dense .document-details dd,
+  .document-fit-micro .document-details dt,
+  .document-fit-micro .document-details dd {
+    font-size: 8.5px;
+    line-height: 1.08;
+  }
+
+  .document-fit-dense .bill-line-table th,
+  .document-fit-micro .bill-line-table th {
+    height: 23px;
+    padding: 3px 4px;
+    font-size: 8px;
+    line-height: 1.05;
+  }
+
+  .document-fit-dense .bill-line-table td {
+    height: 22px;
+    padding: 2px 4px;
+    font-size: 7.7px;
+    line-height: 1.05;
+  }
+
+  .document-fit-micro .bill-line-table td {
+    height: 17px;
+    padding: 1px 3px;
+    font-size: 6.7px;
+    line-height: 1.02;
+  }
+
+  .document-fit-dense .bill-footer-table th,
+  .document-fit-dense .bill-footer-table td,
+  .document-fit-micro .bill-footer-table th,
+  .document-fit-micro .bill-footer-table td {
+    height: 22px;
+    padding: 3px 5px;
+    font-size: 8.2px;
+    line-height: 1.08;
+  }
+
+  .document-fit-dense .bill-payment-qr,
+  .document-fit-dense .qr-code,
+  .document-fit-micro .bill-payment-qr,
+  .document-fit-micro .qr-code {
+    width: 48px;
+    height: 48px;
+  }
+
+  .document-fit-receipt {
+    padding-top: 18mm;
+    padding-bottom: 12mm;
   }
 
   .bill-line-table thead {

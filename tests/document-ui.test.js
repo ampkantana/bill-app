@@ -52,11 +52,12 @@ globalThis.__exports = {
   deleteReceipt,
   paymentInfoHtml,
   documentPrintTitle,
+  documentPrintFitClass,
   renderDocumentLabelInputs,
   renderOriginalDocumentItems,
 };`, sandbox);
 
-const { defaultState, state, documentTypeMeta, documentDateHtml, documentCustomerHtml, documentSellerHtml, documentNoteHtml, documentLabel, documentNumberHtml, deleteCustomer, deleteQuote, deleteInvoice, deletePayment, deleteReceipt, paymentInfoHtml, documentPrintTitle, renderDocumentLabelInputs, renderOriginalDocumentItems } = sandbox.__exports;
+const { defaultState, state, documentTypeMeta, documentDateHtml, documentCustomerHtml, documentSellerHtml, documentNoteHtml, documentLabel, documentNumberHtml, deleteCustomer, deleteQuote, deleteInvoice, deletePayment, deleteReceipt, paymentInfoHtml, documentPrintTitle, documentPrintFitClass, renderDocumentLabelInputs, renderOriginalDocumentItems } = sandbox.__exports;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 assert.equal(defaultState.settings.qrCodeImage, "");
@@ -69,6 +70,11 @@ assert.deepEqual(plain(documentTypeMeta("receipt")), { title: "RECEIPT", label: 
 assert.equal(documentPrintTitle("invoice", { issueDate: "2026-05-12", projectName: "Tone club" }, { name: "K.GRING TONE CLUB" }), "2026.05.12InvoiceToneclub");
 assert.equal(documentPrintTitle("quote", { issueDate: "2026-05-12" }, { name: "K.GRING TONE CLUB" }), "2026.05.12QuotationKGRINGTONECLUB");
 assert.equal(documentPrintTitle("receipt", { issueDate: "2026-05-12", receiptNumber: "RC-2026-0001" }, null), "2026.05.12ReceiptRC20260001");
+assert.equal(documentPrintFitClass("quote", { items: [{}, {}] }), "document-fit-spacious");
+assert.equal(documentPrintFitClass("invoice", { items: Array.from({ length: 6 }, () => ({})) }), "document-fit-compact");
+assert.equal(documentPrintFitClass("invoice", { items: Array.from({ length: 10 }, () => ({})) }), "document-fit-dense");
+assert.equal(documentPrintFitClass("invoice", { items: Array.from({ length: 15 }, () => ({})) }), "document-fit-micro");
+assert.equal(documentPrintFitClass("receipt", {}), "document-fit-receipt");
 
 assert.match(documentNumberHtml("quote", { quoteNumber: "QT-2026-0001" }), /QT-2026-0001/);
 assert.match(documentNumberHtml("invoice", { invoiceNumber: "INV-2026-0001" }), /INV-2026-0001/);
@@ -192,6 +198,8 @@ assert.match(source, /data-receipt-invoice/);
 assert.match(source, /data-action="print-document"/);
 assert.match(source, /function printDocument/);
 assert.match(source, /documentPrintTitle/);
+assert.match(source, /documentPrintFitClass/);
+assert.match(source, /classic-bill \$\{fitClass\}/);
 assert.match(source, /document.title = printTitle/);
 assert.doesNotMatch(source, /onclick="window\.print\(\)"/);
 assert.doesNotMatch(cssSource, /classic-bill::before/);
@@ -202,14 +210,17 @@ assert.match(cssSource, /--bill-line: var\(--line-strong\)/);
 assert.match(cssSource, /--page-bg: #fbf4ef/);
 assert.match(cssSource, /--bg: #f6ebe2/);
 assert.match(cssSource, /@media print[\s\S]*background: var\(--page-bg\)/);
-assert.match(cssSource, /@media print[\s\S]*\.classic-bill[\s\S]*padding: 24mm 14mm 18mm/);
+assert.match(cssSource, /@media print[\s\S]*height: 297mm/);
+assert.match(cssSource, /@media print[\s\S]*overflow: hidden/);
+assert.match(cssSource, /@media print[\s\S]*\.classic-bill[\s\S]*padding: 20mm 14mm 14mm/);
 assert.match(cssSource, /@media print[\s\S]*print-color-adjust: exact/);
 assert.match(cssSource, /@media print[\s\S]*--print-fit-font: 11px/);
 assert.match(cssSource, /@media print[\s\S]*max-height: 297mm/);
 assert.match(cssSource, /@media print[\s\S]*overflow: hidden/);
-assert.match(cssSource, /@media print[\s\S]*\.classic-bill h2[\s\S]*font-size: 58px/);
+assert.match(cssSource, /@media print[\s\S]*break-after: avoid/);
+assert.match(cssSource, /@media print[\s\S]*\.classic-bill h2[\s\S]*font-size: 56px/);
 assert.match(cssSource, /@media print[\s\S]*\.bill-line-table td[\s\S]*height: 46px/);
-assert.match(cssSource, /@media print[\s\S]*\.bill-payment-qr[\s\S]*width: 78px/);
+assert.match(cssSource, /@media print[\s\S]*\.bill-payment-qr[\s\S]*width: 70px/);
 assert.match(cssSource, /\.bill-lines-spacious[\s\S]*font-size: 17px/);
 assert.match(cssSource, /\.bill-lines-dense[\s\S]*font-size: 11px/);
 assert.match(cssSource, /\.bill-row-filler:last-child td\s*\{[\s\S]*height: 290px/);
@@ -217,7 +228,12 @@ assert.match(cssSource, /\.bill-footer-table\s*\{[\s\S]*margin-top: 0/);
 assert.match(cssSource, /\.bill-footer-table\s*\{[\s\S]*border-top: 0/);
 assert.match(cssSource, /@media print[\s\S]*\.bill-lines-spacious[\s\S]*font-size: 14px/);
 assert.match(cssSource, /@media print[\s\S]*\.bill-lines-dense[\s\S]*font-size: 8px/);
-assert.match(cssSource, /@media print[\s\S]*\.bill-row-filler:last-child td\s*\{[\s\S]*height: 270px/);
+assert.match(cssSource, /@media print[\s\S]*\.bill-row-filler:last-child td\s*\{[\s\S]*height: 230px/);
+assert.match(cssSource, /@media print[\s\S]*\.document-fit-spacious \.bill-row-filler:last-child td\s*\{[\s\S]*height: 254px/);
+assert.match(cssSource, /@media print[\s\S]*\.document-fit-compact[\s\S]*padding-top: 16mm/);
+assert.match(cssSource, /@media print[\s\S]*\.document-fit-dense[\s\S]*padding: 12mm 12mm 8mm/);
+assert.match(cssSource, /@media print[\s\S]*\.document-fit-micro \.bill-line-table td[\s\S]*font-size: 6\.7px/);
+assert.match(cssSource, /@media print[\s\S]*\.document-fit-receipt[\s\S]*padding-top: 18mm/);
 assert.match(cssSource, /@media print[\s\S]*table\s*\{[\s\S]*display: table/);
 assert.match(cssSource, /@media print[\s\S]*thead\s*\{[\s\S]*display: table-header-group/);
 assert.match(cssSource, /@media print[\s\S]*td::before\s*\{[\s\S]*content: none/);

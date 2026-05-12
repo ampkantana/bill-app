@@ -1701,6 +1701,7 @@ function renderDocument(type, id) {
   const customer = customerById(doc.customerId);
   const meta = documentTypeMeta(type);
   const printTitle = documentPrintTitle(type, base || doc, customer);
+  const fitClass = documentPrintFitClass(type, base || doc);
   page(
     meta.title,
     "Preview / print เอกสาร",
@@ -1713,7 +1714,7 @@ function renderDocument(type, id) {
      ${type === "invoice" ? `<button class="button danger no-print" data-delete-invoice="${doc.id}">ลบใบแจ้งหนี้</button>` : ""}
      ${type === "receipt" ? `<button class="button danger no-print" data-delete-receipt="${doc.id}">ลบใบเสร็จ</button>` : ""}`,
     `
-      <article class="document classic-bill">
+      <article class="document classic-bill ${fitClass}">
         <header class="classic-bill-head">
           <h2>${meta.title}</h2>
           <div class="bill-date-block">
@@ -1737,6 +1738,15 @@ function renderDocument(type, id) {
   document.querySelector("[data-delete-invoice]")?.addEventListener("click", () => deleteInvoice(doc.id));
   document.querySelector("[data-delete-receipt]")?.addEventListener("click", () => deleteReceipt(doc.id));
   document.querySelector('[data-action="print-document"]').addEventListener("click", () => printDocument(printTitle));
+}
+
+function documentPrintFitClass(type, doc = {}) {
+  if (type === "receipt") return "document-fit-receipt";
+  const itemCount = (doc.items || []).length;
+  if (itemCount >= 15) return "document-fit-micro";
+  if (itemCount >= 10) return "document-fit-dense";
+  if (itemCount >= 6) return "document-fit-compact";
+  return "document-fit-spacious";
 }
 
 function printDocument(printTitle = "Kantana Billing ERP") {
