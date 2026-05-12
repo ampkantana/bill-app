@@ -3,6 +3,14 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 
 const source = fs.readFileSync("app.js", "utf8").replace(/\napp\(\);\s*$/, "");
+const cssSource = fs.readFileSync("styles.css", "utf8");
+const htmlSource = fs.readFileSync("index.html", "utf8");
+assert.match(htmlSource, /Cormorant\+Garamond/);
+assert.match(htmlSource, /Montserrat/);
+assert.match(htmlSource, /Sarabun/);
+assert.match(cssSource, /--font-display: "Cormorant Garamond"/);
+assert.match(cssSource, /--font-sans: "Montserrat"/);
+assert.match(cssSource, /--font-thai: "Sarabun"/);
 assert.doesNotMatch(source, /\["services", "บริการ"\]/);
 assert.doesNotMatch(source, /เพิ่มจากบริการ/);
 assert.doesNotMatch(source, /servicePicker|invoiceServicePicker/);
@@ -33,55 +41,155 @@ globalThis.__exports = {
   documentCustomerHtml,
   documentSellerHtml,
   documentNoteHtml,
+  documentLabel,
   documentNumberHtml,
+  deleteCustomer,
   deleteQuote,
+  deleteInvoice,
+  deletePayment,
+  deleteReceipt,
   paymentInfoHtml,
+  renderDocumentLabelInputs,
+  renderOriginalDocumentItems,
 };`, sandbox);
 
-const { defaultState, state, documentTypeMeta, documentDateHtml, documentCustomerHtml, documentSellerHtml, documentNoteHtml, documentNumberHtml, deleteQuote, paymentInfoHtml } = sandbox.__exports;
+const { defaultState, state, documentTypeMeta, documentDateHtml, documentCustomerHtml, documentSellerHtml, documentNoteHtml, documentLabel, documentNumberHtml, deleteCustomer, deleteQuote, deleteInvoice, deletePayment, deleteReceipt, paymentInfoHtml, renderDocumentLabelInputs, renderOriginalDocumentItems } = sandbox.__exports;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 assert.equal(defaultState.settings.qrCodeImage, "");
+assert.equal(defaultState.settings.documentLabels.billTo, "Bill To");
+assert.equal(documentLabel("billTo"), "Bill To");
 
-assert.deepEqual(plain(documentTypeMeta("quote")), { title: "ใบเสนอราคา", label: "Quotation" });
+assert.deepEqual(plain(documentTypeMeta("quote")), { title: "QUOTATION", label: "Quotation" });
 assert.deepEqual(plain(documentTypeMeta("invoice")), { title: "INVOICE", label: "Invoice" });
 assert.deepEqual(plain(documentTypeMeta("receipt")), { title: "RECEIPT", label: "Receipt" });
 
-assert.equal(documentNumberHtml("quote", { quoteNumber: "QT-2026-0001" }), "");
+assert.match(documentNumberHtml("quote", { quoteNumber: "QT-2026-0001" }), /QT-2026-0001/);
 assert.match(documentNumberHtml("invoice", { invoiceNumber: "INV-2026-0001" }), /INV-2026-0001/);
 
 const quoteDateHtml = documentDateHtml("quote", { issueDate: "2026-05-10", expiryDate: "2026-05-20" }, null);
-assert.match(quoteDateHtml, /วันที่/);
-assert.match(quoteDateHtml, /ใช้ได้ถึง/);
+assert.match(quoteDateHtml, /Date/);
+assert.doesNotMatch(quoteDateHtml, /วันที่/);
+assert.doesNotMatch(quoteDateHtml, /ใช้ได้ถึง/);
 assert.doesNotMatch(quoteDateHtml, /กำหนดชำระ/);
 
 const customerHtml = documentCustomerHtml({ projectName: "K.GRING RENOVATION" }, { name: "K.GRING TONE CLUB" });
 assert.match(customerHtml, /Project/);
+assert.match(customerHtml, /Bill To/);
 assert.match(customerHtml, /K.GRING RENOVATION/);
 assert.match(customerHtml, /K.GRING TONE CLUB/);
-assert.match(documentCustomerHtml({}, { name: "K.GRING TONE CLUB", taxId: "123", address: "Bangkok", phone: "099" }), /หมายเลขผู้เสียภาษี/);
-assert.match(documentCustomerHtml({}, { name: "K.GRING TONE CLUB", taxId: "123", address: "Bangkok", phone: "099" }), /ที่อยู่/);
-assert.match(documentCustomerHtml({}, { name: "K.GRING TONE CLUB", taxId: "123", address: "Bangkok", phone: "099" }), /โทร/);
+assert.match(documentCustomerHtml({}, { name: "K.GRING TONE CLUB", taxId: "123", address: "Bangkok", phone: "099" }), /Tax ID/);
+assert.match(documentCustomerHtml({}, { name: "K.GRING TONE CLUB", taxId: "123", address: "Bangkok", phone: "099" }), /Address/);
+assert.match(documentCustomerHtml({}, { name: "K.GRING TONE CLUB", taxId: "123", address: "Bangkok", phone: "099" }), /Phone/);
 assert.ok(customerHtml.indexOf("K.GRING RENOVATION") < customerHtml.indexOf("K.GRING TONE CLUB"));
 
+state.settings.documentLabels.billTo = "Client";
+state.settings.documentLabels.taxId = "";
+const customCustomerHtml = documentCustomerHtml({}, { name: "K.GRING TONE CLUB", taxId: "123", address: "Bangkok", phone: "099" });
+assert.match(customCustomerHtml, /Client/);
+assert.doesNotMatch(customCustomerHtml, /Tax ID/);
+assert.match(customCustomerHtml, /123/);
+state.settings.documentLabels = { ...defaultState.settings.documentLabels };
+
 const sellerHtml = documentSellerHtml();
-assert.match(sellerHtml, /ข้าพเจ้า/);
-assert.match(sellerHtml, /หมายเลขผู้เสียภาษี/);
-assert.match(sellerHtml, /ที่อยู่ปัจจุบัน/);
-assert.match(sellerHtml, /โทร/);
+assert.match(sellerHtml, /From/);
+assert.match(sellerHtml, /Tax ID/);
+assert.match(sellerHtml, /Address/);
+assert.match(sellerHtml, /Phone/);
 assert.match(sellerHtml, /E-mail/);
 
-assert.match(documentNoteHtml({ note: "แก้แบบได้ 2 ครั้ง" }), /หมายเหตุ/);
+assert.match(documentNoteHtml({ note: "แก้แบบได้ 2 ครั้ง" }), /NOTE/);
 assert.match(documentNoteHtml({ note: "แก้แบบได้ 2 ครั้ง" }), /แก้แบบได้ 2 ครั้ง/);
 assert.equal(documentNoteHtml({ note: "" }), "");
+
+state.customers = [{ id: "cus_delete", name: "Delete Me" }, { id: "cus_keep", name: "Keep Me" }];
+state.quotes = [{ id: "qt_customer_delete", customerId: "cus_delete", quoteNumber: "QT-2026-0001" }];
+state.invoices = [{ id: "inv_customer_delete", customerId: "cus_delete", invoiceNumber: "INV-2026-0001", totalDue: 5000 }];
+state.payments = [{ id: "pay_customer_delete", invoiceId: "inv_customer_delete", customerId: "cus_delete", amount: 3000 }];
+state.receipts = [{ id: "rc_customer_delete", invoiceId: "inv_customer_delete", customerId: "cus_delete", receiptNumber: "RC-2026-0001" }];
+deleteCustomer("cus_delete");
+assert.deepEqual(state.customers.map((customer) => customer.id), ["cus_keep"]);
+assert.equal(state.quotes.length, 0);
+assert.equal(state.invoices.length, 0);
+assert.equal(state.payments.length, 0);
+assert.equal(state.receipts.length, 0);
 
 state.quotes = [{ id: "qt_sent", status: "sent", quoteNumber: "QT-2026-0001", customerId: "cus_kring" }];
 deleteQuote("qt_sent");
 assert.equal(state.quotes.length, 0);
 
+state.invoices = [{ id: "inv_delete", invoiceNumber: "INV-2026-0001", quoteId: "qt_confirmed", customerId: "cus_kring", totalDue: 5000, paidAmount: 1000, balanceDue: 4000, status: "partial" }];
+state.quotes = [{ id: "qt_confirmed", status: "confirmed", createdInvoiceId: "inv_delete", quoteNumber: "QT-2026-0001", customerId: "cus_kring" }];
+state.payments = [{ id: "pay_delete_with_invoice", invoiceId: "inv_delete", customerId: "cus_kring", amount: 1000, paymentDate: "2026-05-10" }];
+state.receipts = [{ id: "rc_delete_with_invoice", receiptNumber: "RC-2026-0001", invoiceId: "inv_delete", paymentId: "pay_delete_with_invoice", customerId: "cus_kring" }];
+deleteInvoice("inv_delete");
+assert.equal(state.invoices.length, 0);
+assert.equal(state.payments.length, 0);
+assert.equal(state.receipts.length, 0);
+assert.equal(state.quotes[0].status, "sent");
+assert.equal(state.quotes[0].createdInvoiceId, "");
+
+state.invoices = [{ id: "inv_payment", invoiceNumber: "INV-2026-0002", customerId: "cus_kring", totalDue: 5000, paidAmount: 3000, balanceDue: 2000, status: "partial" }];
+state.payments = [{ id: "pay_delete", invoiceId: "inv_payment", customerId: "cus_kring", amount: 3000, paymentDate: "2026-05-10" }];
+state.receipts = [{ id: "rc_delete_with_payment", receiptNumber: "RC-2026-0002", invoiceId: "inv_payment", paymentId: "pay_delete", customerId: "cus_kring" }];
+deletePayment("pay_delete");
+assert.equal(state.payments.length, 0);
+assert.equal(state.receipts.length, 0);
+assert.equal(state.invoices[0].paidAmount, 0);
+assert.equal(state.invoices[0].balanceDue, 5000);
+assert.equal(state.invoices[0].status, "open");
+
+state.invoices = [{ id: "inv_receipt", invoiceNumber: "INV-2026-0003", customerId: "cus_kring", totalDue: 5000, paidAmount: 3000, balanceDue: 2000, status: "partial" }];
+state.payments = [{ id: "pay_keep", invoiceId: "inv_receipt", customerId: "cus_kring", amount: 3000, paymentDate: "2026-05-10" }];
+state.receipts = [{ id: "rc_delete", receiptNumber: "RC-2026-0003", invoiceId: "inv_receipt", paymentId: "pay_keep", customerId: "cus_kring" }];
+deleteReceipt("rc_delete");
+assert.equal(state.receipts.length, 0);
+assert.equal(state.payments.length, 1);
+assert.equal(state.invoices[0].paidAmount, 3000);
+
 assert.match(source, /id="quoteQrInput"/);
 assert.match(source, /name="projectName"/);
+assert.doesNotMatch(source, /name="expiryDate"/);
 assert.match(source, /renderOriginalDocumentItems/);
+assert.match(source, /classic-bill/);
+assert.match(source, /bill-party-freeform/);
+assert.doesNotMatch(source, /<section class="bill-party-grid"/);
+assert.match(source, /bill-line-table/);
+assert.match(source, /bill-footer-table/);
+assert.match(source, /data-edit-quote/);
+assert.match(source, /syncInvoiceFromQuote/);
+assert.match(source, /data-receipt-invoice/);
+assert.doesNotMatch(cssSource, /classic-bill::before/);
+assert.doesNotMatch(cssSource, /classic-bill::after/);
+assert.match(cssSource, /--bill-paper: var\(--page-bg\)/);
+assert.match(cssSource, /--bill-ink: var\(--ink\)/);
+assert.match(cssSource, /--bill-line: var\(--line-strong\)/);
+assert.match(cssSource, /--page-bg: #fbf4ef/);
+assert.match(cssSource, /--bg: #f6ebe2/);
+assert.match(cssSource, /@media print[\s\S]*background: var\(--page-bg\)/);
+assert.match(cssSource, /@media print[\s\S]*\.classic-bill[\s\S]*padding: 24mm 14mm 18mm/);
+assert.match(cssSource, /@media print[\s\S]*print-color-adjust: exact/);
+assert.match(cssSource, /@media print[\s\S]*--print-fit-font: 11px/);
+assert.match(cssSource, /@media print[\s\S]*max-height: 297mm/);
+assert.match(cssSource, /@media print[\s\S]*overflow: hidden/);
+assert.match(cssSource, /@media print[\s\S]*\.classic-bill h2[\s\S]*font-size: 58px/);
+assert.match(cssSource, /@media print[\s\S]*\.bill-line-table td[\s\S]*height: 46px/);
+assert.match(cssSource, /@media print[\s\S]*\.bill-payment-qr[\s\S]*width: 78px/);
+assert.match(cssSource, /\.bill-lines-spacious[\s\S]*font-size: 17px/);
+assert.match(cssSource, /\.bill-lines-dense[\s\S]*font-size: 11px/);
+assert.match(cssSource, /\.bill-row-filler:last-child td\s*\{[\s\S]*height: 290px/);
+assert.match(cssSource, /\.bill-footer-table\s*\{[\s\S]*margin-top: 0/);
+assert.match(cssSource, /\.bill-footer-table\s*\{[\s\S]*border-top: 0/);
+assert.match(cssSource, /@media print[\s\S]*\.bill-lines-spacious[\s\S]*font-size: 14px/);
+assert.match(cssSource, /@media print[\s\S]*\.bill-lines-dense[\s\S]*font-size: 8px/);
+assert.match(cssSource, /@media print[\s\S]*\.bill-row-filler:last-child td\s*\{[\s\S]*height: 270px/);
+assert.match(cssSource, /@media print[\s\S]*table\s*\{[\s\S]*display: table/);
+assert.match(cssSource, /@media print[\s\S]*thead\s*\{[\s\S]*display: table-header-group/);
+assert.match(cssSource, /@media print[\s\S]*td::before\s*\{[\s\S]*content: none/);
+assert.match(cssSource, /@media \(max-width: 980px\)[\s\S]*\.document table\s*\{[\s\S]*display: table/);
+assert.match(cssSource, /@media \(max-width: 980px\)[\s\S]*\.document td::before\s*\{[\s\S]*content: none/);
+assert.match(cssSource, /border-left: 0/);
+assert.match(cssSource, /border-right: 0/);
 
 let paymentInfo = paymentInfoHtml();
 assert.match(paymentInfo, /ธนาคารไทยพาณิชย์/);
@@ -93,3 +201,55 @@ state.settings.qrCodeImage = "data:image/png;base64,qr-test";
 paymentInfo = paymentInfoHtml();
 assert.match(paymentInfo, /<img/);
 assert.match(paymentInfo, /data:image\/png;base64,qr-test/);
+
+const billTable = renderOriginalDocumentItems({
+  items: [{ description: "RECEPTION AREA VIEW 1,3", quantity: 2, unitPrice: 4000, amount: 4000 }],
+  note: "แก้แบบได้ 2 ครั้ง",
+  subtotal: 4000,
+  withholdingAmount: 120,
+  totalDue: 3880,
+});
+assert.match(billTable, /bill-line-table bill-lines-spacious/);
+assert.match(billTable, /bill-row-filler/);
+assert.match(billTable, /ITEM/);
+assert.doesNotMatch(billTable, /ลำดับที่/);
+assert.match(billTable, /PARTICULARS/);
+assert.match(billTable, /NOTE/);
+assert.match(billTable, /PAYMENT TO/);
+assert.match(billTable, /SUBTOTAL/);
+assert.match(billTable, /WITHHOLDING TAX 3%/);
+assert.match(billTable, /TOTAL DUE/);
+
+const denseBillTable = renderOriginalDocumentItems({
+  items: Array.from({ length: 9 }, (_, index) => ({ description: `ITEM ${index + 1}`, quantity: 1, unitPrice: 1000, amount: 1000 })),
+});
+assert.match(denseBillTable, /bill-line-table bill-lines-dense/);
+assert.doesNotMatch(denseBillTable, /bill-row-filler/);
+
+const calculatedBillTable = renderOriginalDocumentItems({
+  items: [{ description: "EXTERIOR VIEW", quantity: 1, unitPrice: 4000, amount: 4000 }],
+  note: "",
+});
+assert.match(calculatedBillTable, /ปรับแก้จำนวน 2 ครั้ง/);
+assert.match(calculatedBillTable, /มัดจำ 70% ก่อนส่งงานครั้งแรก/);
+assert.match(calculatedBillTable, /ส่วนที่เหลือหลัง/);
+assert.match(calculatedBillTable, /SUBTOTAL[\s\S]*4,000 บาท/);
+assert.match(calculatedBillTable, /WITHHOLDING TAX 3%[\s\S]*120 บาท/);
+assert.match(calculatedBillTable, /AMOUNT[\s\S]*3,880 บาท/);
+
+state.settings.qrCodeImage = "data:image/png;base64,qr-test";
+state.settings.documentLabels.item = "#";
+state.settings.documentLabels.particulars = "Description";
+state.settings.documentLabels.note = "";
+const customBillTable = renderOriginalDocumentItems({
+  items: [{ description: "EXTERIOR VIEW", quantity: 1, unitPrice: 4000, amount: 4000 }],
+  note: "แก้แบบได้ 2 ครั้ง",
+});
+assert.match(customBillTable, />#<\/th>/);
+assert.match(customBillTable, /Description/);
+assert.doesNotMatch(customBillTable, /NOTE/);
+assert.match(customBillTable, /แก้แบบได้ 2 ครั้ง/);
+assert.match(renderDocumentLabelInputs(), /name="documentLabels\.billTo"/);
+state.settings.documentLabels = { ...defaultState.settings.documentLabels };
+
+assert.match(renderOriginalDocumentItems({ items: [], subtotal: 0, withholdingAmount: 0, totalDue: 0 }), /bill-payment-qr/);

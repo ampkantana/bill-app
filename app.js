@@ -1,5 +1,35 @@
 const STORAGE_KEY = "kantana-erp-v1";
 const PIN_KEY = "kantana-erp-session";
+const DEFAULT_BILL_NOTE = `-ปรับแก้จำนวน 2 ครั้ง หลังจากส่งครั้งแรก รวมจะได้ภาพไฟนอล ทั้งหมด 3 ครั้ง
+-มัดจำ 70% ก่อนส่งงานครั้งแรก
+-ส่วนที่เหลือหลัง จากแก้ไข้ตามรายละเอียดอีกที`;
+const DEFAULT_DOCUMENT_LABELS = {
+  date: "Date",
+  project: "Project",
+  from: "From",
+  billTo: "Bill To",
+  taxId: "Tax ID",
+  address: "Address",
+  phone: "Phone",
+  email: "E-mail",
+  item: "ITEM",
+  particulars: "PARTICULARS",
+  quantity: "QUANTITY",
+  unitPrice: "UNIT PRICE",
+  amount: "AMOUNT",
+  note: "NOTE",
+  paymentTo: "PAYMENT TO",
+  accountName: "Account name",
+  savingsAccountNo: "Savings account no.",
+  contact: "Contact",
+  subtotal: "SUBTOTAL",
+  withholdingTax: "WITHHOLDING TAX",
+  paid: "PAID",
+  totalDue: "TOTAL DUE",
+  reference: "Reference",
+  paymentMethod: "Payment method",
+  attachment: "Attachment",
+};
 
 const defaultState = {
   settings: {
@@ -13,6 +43,7 @@ const defaultState = {
     bankAccountNumber: "402-823-5536",
     qrCodeImage: "",
     defaultWithholdingPercent: 3,
+    documentLabels: { ...DEFAULT_DOCUMENT_LABELS },
     pin: "1234",
   },
   counters: {
@@ -61,6 +92,44 @@ const navItems = [
   ["settings", "ตั้งค่า"],
 ];
 
+const documentLabelGroups = [
+  ["หัวข้อด้านบน", [
+    ["date", "วันที่"],
+    ["from", "ผู้ขาย"],
+    ["billTo", "ลูกค้า"],
+    ["project", "โปรเจกต์"],
+  ]],
+  ["ข้อมูลติดต่อ", [
+    ["taxId", "เลขผู้เสียภาษี"],
+    ["address", "ที่อยู่"],
+    ["phone", "โทร"],
+    ["email", "อีเมล"],
+  ]],
+  ["ตารางรายการ", [
+    ["item", "ลำดับ"],
+    ["particulars", "รายละเอียด"],
+    ["quantity", "จำนวน"],
+    ["unitPrice", "ราคาต่อหน่วย"],
+    ["amount", "จำนวนเงิน"],
+  ]],
+  ["สรุปและชำระเงิน", [
+    ["note", "หมายเหตุ"],
+    ["paymentTo", "ช่องทางชำระเงิน"],
+    ["accountName", "ชื่อบัญชี"],
+    ["savingsAccountNo", "เลขบัญชี"],
+    ["contact", "ติดต่อ"],
+    ["subtotal", "รวมราคา"],
+    ["withholdingTax", "หัก ณ ที่จ่าย"],
+    ["paid", "ชำระแล้ว"],
+    ["totalDue", "จำนวนที่ต้องชำระ"],
+  ]],
+  ["ใบเสร็จ", [
+    ["reference", "อ้างอิง"],
+    ["paymentMethod", "วิธีชำระ"],
+    ["attachment", "หลักฐาน"],
+  ]],
+];
+
 function loadState() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -70,7 +139,7 @@ function loadState() {
     return {
       ...base,
       ...parsed,
-      settings: { ...base.settings, ...(parsed.settings || {}) },
+      settings: mergeSettings(base.settings, parsed.settings),
       counters: { ...base.counters, ...(parsed.counters || {}) },
       customers: parsed.customers || base.customers,
       services: parsed.services || base.services,
@@ -83,6 +152,17 @@ function loadState() {
   } catch {
     return structuredClone(defaultState);
   }
+}
+
+function mergeSettings(baseSettings, incomingSettings = {}) {
+  return {
+    ...baseSettings,
+    ...incomingSettings,
+    documentLabels: {
+      ...baseSettings.documentLabels,
+      ...(incomingSettings.documentLabels || {}),
+    },
+  };
 }
 
 function saveState() {
@@ -209,62 +289,86 @@ function statusText(status) {
 
 function documentTypeMeta(type) {
   return {
-    quote: { title: "ใบเสนอราคา", label: "Quotation" },
+    quote: { title: "QUOTATION", label: "Quotation" },
     invoice: { title: "INVOICE", label: "Invoice" },
     receipt: { title: "RECEIPT", label: "Receipt" },
   }[type] || { title: "DOCUMENT", label: "Document" };
 }
 
+function documentLabel(key) {
+  const labels = state.settings.documentLabels || {};
+  return Object.prototype.hasOwnProperty.call(labels, key) ? String(labels[key]).trim() : DEFAULT_DOCUMENT_LABELS[key] || "";
+}
+
+function labeledText(labelKey, value) {
+  const label = documentLabel(labelKey);
+  return label ? `<strong>${label}</strong> ${value}` : value;
+}
+
+function detailRow(labelKey, value) {
+  const label = documentLabel(labelKey);
+  return `<div>${label ? `<dt>${label}</dt>` : ""}<dd>${value || "-"}</dd></div>`;
+}
+
+function labelParagraph(labelKey, className) {
+  const label = documentLabel(labelKey);
+  return label ? `<p class="${className}">${label}</p>` : "";
+}
+
 function documentDateHtml(type, doc, base) {
-  const validUntil = type === "quote" ? doc.expiryDate : base?.dueDate;
-  const secondLabel = type === "quote" ? "ใช้ได้ถึง" : "กำหนดชำระ";
-  return `<strong>วันที่</strong><br>${thaiDate(doc.issueDate)}${validUntil ? `<br><br><strong>${secondLabel}</strong><br>${thaiDate(validUntil)}` : ""}`;
+  return labeledText("date", thaiDate(doc.issueDate));
 }
 
 function documentCustomerHtml(doc, customer) {
   return `
-    ${doc.projectName ? `<p class="project-label">Project</p><p class="project-name">${doc.projectName}</p>` : ""}
-    <p class="customer-label">ถึง</p>
+    ${doc.projectName ? `${labelParagraph("project", "project-label")}<p class="project-name">${doc.projectName}</p>` : ""}
+    ${labelParagraph("billTo", "customer-label")}
     <p class="customer-name">${customer?.name || "-"}</p>
     <dl class="document-details">
-      <div><dt>หมายเลขผู้เสียภาษี</dt><dd>${customer?.taxId || "-"}</dd></div>
-      <div><dt>ที่อยู่</dt><dd>${customer?.address || "-"}</dd></div>
-      <div><dt>โทร</dt><dd>${customer?.phone || "-"}</dd></div>
-      ${customer?.email ? `<div><dt>E-mail</dt><dd>${customer.email}</dd></div>` : ""}
+      ${detailRow("taxId", customer?.taxId)}
+      ${detailRow("address", customer?.address)}
+      ${detailRow("phone", customer?.phone)}
+      ${customer?.email ? detailRow("email", customer.email) : ""}
     </dl>
   `;
 }
 
 function documentSellerHtml() {
   return `
-    <p class="seller-label">ข้าพเจ้า</p>
+    ${labelParagraph("from", "seller-label")}
     <p class="seller-name">${state.settings.businessName}</p>
     <dl class="document-details">
-      <div><dt>หมายเลขผู้เสียภาษี</dt><dd>${state.settings.taxId || "-"}</dd></div>
-      <div><dt>ที่อยู่ปัจจุบัน</dt><dd>${state.settings.address || "-"}</dd></div>
-      <div><dt>โทร</dt><dd>${state.settings.phone || "-"}</dd></div>
-      <div><dt>E-mail</dt><dd>${state.settings.email || "-"}</dd></div>
+      ${detailRow("taxId", state.settings.taxId)}
+      ${detailRow("address", state.settings.address)}
+      ${detailRow("phone", state.settings.phone)}
+      ${detailRow("email", state.settings.email)}
     </dl>
   `;
 }
 
 function documentNumberHtml(type, doc) {
-  if (type === "quote") return "";
-  const number = doc.invoiceNumber || doc.receiptNumber || "";
+  const number = doc.quoteNumber || doc.invoiceNumber || doc.receiptNumber || "";
   return number ? `<p>${number}</p>` : "";
 }
 
 function documentNoteHtml(doc) {
   const note = String(doc.note || "").trim();
-  return note ? `<div class="document-box note-box"><strong>หมายเหตุ</strong><br>${note}</div>` : "";
+  const label = documentLabel("note");
+  return note ? `<div class="document-box note-box">${label ? `<strong>${label}</strong><br>` : ""}${note}</div>` : "";
 }
 
 function paymentInfoHtml() {
   return `
     <div class="payment-panel">
-      <div>
-        <strong>Payment to</strong>
-        <p>${state.settings.bankName}<br>${state.settings.bankAccountName}<br>${state.settings.bankAccountNumber}</p>
+      <div class="document-payment-grid">
+        <div class="payment-bank">
+          ${documentLabel("paymentTo") ? `<strong>${documentLabel("paymentTo")}</strong>` : ""}
+          <p>${state.settings.bankName}<br>${state.settings.bankAccountName}<br>${state.settings.bankAccountNumber}</p>
+        </div>
+        <div class="payment-contact">
+          ${documentLabel("contact") ? `<strong>${documentLabel("contact")}</strong>` : ""}
+          <p>${state.settings.phone || "-"}<br>${state.settings.email || "-"}</p>
+        </div>
       </div>
       ${state.settings.qrCodeImage ? `<img class="qr-code" src="${state.settings.qrCodeImage}" alt="Payment QR Code">` : ""}
     </div>
@@ -562,7 +666,8 @@ function renderCustomers() {
       `${money(paid)} บาท`,
       `${money(outstanding)} บาท`,
       `<button class="button" data-customer-detail="${customer.id}">ประวัติ</button>
-       <button class="button primary" data-customer-quote="${customer.id}">New Quote</button>`,
+       <button class="button primary" data-customer-quote="${customer.id}">New Quote</button>
+       <button class="button danger" data-delete-customer="${customer.id}">ลบ</button>`,
     ];
   });
   page(
@@ -574,6 +679,7 @@ function renderCustomers() {
   document.querySelector('[data-action="add-customer"]').addEventListener("click", () => showCustomerForm());
   document.querySelectorAll("[data-customer-quote]").forEach((button) => button.addEventListener("click", () => showQuoteEditor({ customerId: button.dataset.customerQuote })));
   document.querySelectorAll("[data-customer-detail]").forEach((button) => button.addEventListener("click", () => renderCustomerDetail(button.dataset.customerDetail)));
+  document.querySelectorAll("[data-delete-customer]").forEach((button) => button.addEventListener("click", () => deleteCustomer(button.dataset.deleteCustomer)));
 }
 
 function showCustomerForm(customerId) {
@@ -611,6 +717,25 @@ function showCustomerForm(customerId) {
   });
 }
 
+function deleteCustomer(customerId) {
+  const customer = customerById(customerId);
+  if (!customer) return false;
+  const relatedInvoiceIds = new Set(state.invoices.filter((invoice) => invoice.customerId === customerId).map((invoice) => invoice.id));
+  const relatedPaymentIds = new Set(state.payments.filter((payment) => payment.customerId === customerId || relatedInvoiceIds.has(payment.invoiceId)).map((payment) => payment.id));
+  if (!confirm(`ลบลูกค้า ${customer.name} ใช่ไหม? ใบเสนอราคา ใบแจ้งหนี้ รับเงิน และใบเสร็จของลูกค้านี้จะถูกลบด้วย`)) return false;
+  state.customers = state.customers.filter((item) => item.id !== customerId);
+  state.quotes = state.quotes.filter((quote) => quote.customerId !== customerId);
+  state.invoices = state.invoices.filter((invoice) => invoice.customerId !== customerId);
+  state.payments = state.payments.filter((payment) => payment.customerId !== customerId && !relatedInvoiceIds.has(payment.invoiceId));
+  state.receipts = state.receipts.filter((receipt) => receipt.customerId !== customerId && !relatedInvoiceIds.has(receipt.invoiceId) && !relatedPaymentIds.has(receipt.paymentId));
+  state.activities = state.activities.filter((activity) => !(activity.entityType === "customer" && activity.entityId === customerId));
+  if (selectedCustomerId === customerId) selectedCustomerId = state.customers[0]?.id || null;
+  addActivity("customer", customerId, `ลบลูกค้า ${customer.name}`);
+  saveState();
+  if (document.querySelector("#view")) renderCustomers();
+  return true;
+}
+
 function renderCustomerDetail(customerId) {
   selectedCustomerId = customerId;
   const customer = customerById(customerId);
@@ -625,7 +750,8 @@ function renderCustomerDetail(customerId) {
     "Customer ledger และประวัติเอกสาร",
     `<button class="button" data-action="back-customers">กลับ</button>
      <button class="button" data-export-customer="${customerId}">Export Statement</button>
-     <button class="button primary" data-action="quote-for-customer">New Quote</button>`,
+     <button class="button primary" data-action="quote-for-customer">New Quote</button>
+     <button class="button danger" data-delete-customer="${customerId}">ลบลูกค้า</button>`,
     `
       <section class="grid cols-4">
         ${metric("Quote", `${quotes.length} ใบ`)}
@@ -653,6 +779,7 @@ function renderCustomerDetail(customerId) {
   document.querySelector('[data-action="back-customers"]').addEventListener("click", renderCustomers);
   document.querySelector('[data-action="quote-for-customer"]').addEventListener("click", () => showQuoteEditor({ customerId }));
   document.querySelector("[data-export-customer]").addEventListener("click", () => exportCustomerStatementCsv(customerId));
+  document.querySelector("[data-delete-customer]").addEventListener("click", () => deleteCustomer(customerId));
 }
 
 function buildCustomerServiceHistory(invoices) {
@@ -729,6 +856,7 @@ function renderQuotes() {
     `<span class="status ${quote.status}">${statusText(quote.status)}</span>`,
     `${money(quote.totalDue)} บาท`,
     `<button class="button" data-view-quote="${quote.id}">ดู</button>
+     <button class="button" data-edit-quote="${quote.id}">แก้ไข</button>
      ${quote.status === "draft" ? `<button class="button success" data-send-quote="${quote.id}">ส่งแล้ว</button>` : ""}
      ${quote.status === "sent" ? `<button class="button primary" data-confirm-quote="${quote.id}">คอนเฟิร์ม</button>` : ""}
      ${["draft", "sent"].includes(quote.status) ? `<button class="button danger" data-delete-quote="${quote.id}">ลบ</button>` : ""}`,
@@ -744,9 +872,15 @@ function renderQuotes() {
   document.querySelectorAll("[data-confirm-quote]").forEach((button) => button.addEventListener("click", () => confirmQuote(button.dataset.confirmQuote)));
   document.querySelectorAll("[data-delete-quote]").forEach((button) => button.addEventListener("click", () => deleteQuote(button.dataset.deleteQuote)));
   document.querySelectorAll("[data-view-quote]").forEach((button) => button.addEventListener("click", () => renderDocument("quote", button.dataset.viewQuote)));
+  document.querySelectorAll("[data-edit-quote]").forEach((button) => button.addEventListener("click", () => showQuoteEditor({ quoteId: button.dataset.editQuote })));
 }
 
 function showQuoteEditor(options = {}) {
+  const existing = options.quoteId ? state.quotes.find((quote) => quote.id === options.quoteId) : null;
+  if (existing) {
+    renderQuoteEditor({ ...structuredClone(existing), editing: true });
+    return;
+  }
   const draft = {
     customerId: options.customerId || state.customers[0]?.id || "",
     issueDate: today(),
@@ -754,7 +888,7 @@ function showQuoteEditor(options = {}) {
     projectName: "",
     withholdingEnabled: true,
     withholdingPercent: state.settings.defaultWithholdingPercent,
-    note: "",
+    note: DEFAULT_BILL_NOTE,
     items: [blankLineItem()],
   };
   renderQuoteEditor(draft);
@@ -762,9 +896,11 @@ function showQuoteEditor(options = {}) {
 
 function renderQuoteEditor(draft) {
   const calc = calculate(draft.items, draft.withholdingEnabled, draft.withholdingPercent);
+  const isEditing = Boolean(draft.editing || draft.id);
+  const isConfirmed = draft.status === "confirmed";
   page(
-    "สร้างใบเสนอราคา",
-    "พิมพ์รายการเองเหมือนแบบบิลเดิม แล้วระบบคำนวณยอดให้อัตโนมัติ",
+    isEditing ? "แก้ไขใบเสนอราคา" : "สร้างใบเสนอราคา",
+    isConfirmed ? "แก้ไขใบเสนอราคาที่คอนเฟิร์มแล้ว ระบบจะอัปเดต invoice ที่เกี่ยวข้องให้ด้วย" : "พิมพ์รายการเองเหมือนแบบบิลเดิม แล้วระบบคำนวณยอดให้อัตโนมัติ",
     `<button class="button" data-action="back-quotes">กลับ</button>`,
     `
       <form class="split" id="quoteForm">
@@ -773,9 +909,8 @@ function renderQuoteEditor(draft) {
             <label>ลูกค้า<select name="customerId">${state.customers.map((c) => `<option value="${c.id}" ${draft.customerId === c.id ? "selected" : ""}>${c.name}</option>`).join("")}</select></label>
             <label>ชื่อโปรเจกต์<input name="projectName" value="${draft.projectName || ""}"></label>
             <label>วันที่<input name="issueDate" type="date" value="${draft.issueDate}"></label>
-            <label>ใช้ได้ถึง<input name="expiryDate" type="date" value="${draft.expiryDate}"></label>
             <label>หัก ณ ที่จ่าย %<input name="withholdingPercent" type="number" min="0" value="${draft.withholdingPercent}"></label>
-            <label class="span-2">หมายเหตุ<input name="note" value="${draft.note || ""}"></label>
+            <label class="span-2">หมายเหตุ<textarea name="note">${draft.note || DEFAULT_BILL_NOTE}</textarea></label>
           </div>
           <div class="actions">
             <button class="button" id="createInlineCustomer" type="button">เพิ่มลูกค้าใหม่ในหน้านี้</button>
@@ -798,8 +933,8 @@ function renderQuoteEditor(draft) {
             </div>
           </div>
           <div class="actions">
-            <button class="button" data-status="draft" type="submit">บันทึก Draft</button>
-            <button class="button primary" data-status="sent" type="submit">บันทึกและส่งแล้ว</button>
+            ${isEditing ? `<button class="button primary" data-status="${draft.status || "draft"}" type="submit">บันทึกการแก้ไข</button>` : `<button class="button" data-status="draft" type="submit">บันทึก Draft</button>`}
+            ${!isConfirmed ? `<button class="button primary" data-status="sent" type="submit">บันทึกและส่งแล้ว</button>` : ""}
           </div>
         </section>
         <aside class="card summary-panel">
@@ -880,6 +1015,27 @@ function bindQuoteEditor(draft) {
     }
     const calc = calculate(items, true, Number(formData.withholdingPercent || 0));
     const status = event.submitter?.dataset.status || "draft";
+    if (draft.id) {
+      const quote = state.quotes.find((item) => item.id === draft.id);
+      if (!quote) return;
+      Object.assign(quote, {
+        customerId: formData.customerId,
+        projectName: formData.projectName,
+        issueDate: formData.issueDate,
+        expiryDate: formData.expiryDate || formData.issueDate,
+        status: quote.status === "confirmed" ? "confirmed" : status,
+        note: formData.note,
+        items,
+        ...calc,
+        updatedAt: new Date().toISOString(),
+      });
+      syncInvoiceFromQuote(quote);
+      addActivity("quote", quote.id, `แก้ไขใบเสนอราคา ${quote.quoteNumber}`);
+      addActivity("customer", quote.customerId, `แก้ไขใบเสนอราคา ${quote.quoteNumber}`);
+      saveState();
+      renderQuotes();
+      return;
+    }
     const quote = {
       id: uid("qt"),
       quoteNumber: nextNumber("QT"),
@@ -939,6 +1095,26 @@ function updateSummaryPanel(form, draft) {
   panel.innerHTML = `<h2>Summary</h2>${summaryHtml(calculate(draft.items, true, Number(formData.withholdingPercent || 0)))}`;
 }
 
+function syncInvoiceFromQuote(quote) {
+  const invoice = state.invoices.find((item) => item.id === quote.createdInvoiceId || item.quoteId === quote.id);
+  if (!invoice) return null;
+  Object.assign(invoice, {
+    customerId: quote.customerId,
+    projectName: quote.projectName || "",
+    note: quote.note,
+    items: structuredClone(quote.items),
+    subtotal: quote.subtotal,
+    withholdingEnabled: quote.withholdingEnabled,
+    withholdingPercent: quote.withholdingPercent,
+    withholdingAmount: quote.withholdingAmount,
+    totalDue: quote.totalDue,
+    updatedAt: new Date().toISOString(),
+  });
+  recalcInvoice(invoice);
+  addActivity("invoice", invoice.id, `อัปเดตจากใบเสนอราคา ${quote.quoteNumber}`);
+  return invoice;
+}
+
 function confirmQuote(quoteId) {
   const quote = state.quotes.find((item) => item.id === quoteId);
   if (!quote || quote.status === "confirmed") return;
@@ -981,7 +1157,9 @@ function renderInvoices() {
     `<span class="status ${invoice.status}">${statusText(invoice.status)}</span>`,
     `${money(invoice.balanceDue)} บาท`,
     `<button class="button" data-view-invoice="${invoice.id}">ดู</button>
-     ${invoice.status !== "paid" ? `<button class="button primary" data-receive="${invoice.id}">รับเงิน</button>` : ""}`,
+     ${invoice.status !== "paid" ? `<button class="button primary" data-receive="${invoice.id}">รับเงิน</button>` : ""}
+     ${Number(invoice.paidAmount || 0) > 0 ? `<button class="button success" data-receipt-invoice="${invoice.id}">ใบเสร็จ</button>` : ""}
+     <button class="button danger" data-delete-invoice="${invoice.id}">ลบ</button>`,
   ]);
   page(
     "ใบแจ้งหนี้",
@@ -992,6 +1170,27 @@ function renderInvoices() {
   document.querySelector('[data-action="add-invoice"]').addEventListener("click", () => showInvoiceEditor());
   document.querySelectorAll("[data-view-invoice]").forEach((button) => button.addEventListener("click", () => renderDocument("invoice", button.dataset.viewInvoice)));
   document.querySelectorAll("[data-receive]").forEach((button) => button.addEventListener("click", () => showPaymentForm(button.dataset.receive)));
+  document.querySelectorAll("[data-receipt-invoice]").forEach((button) => button.addEventListener("click", () => openReceiptForInvoice(button.dataset.receiptInvoice)));
+  document.querySelectorAll("[data-delete-invoice]").forEach((button) => button.addEventListener("click", () => deleteInvoice(button.dataset.deleteInvoice)));
+}
+
+function deleteInvoice(invoiceId) {
+  const invoice = state.invoices.find((item) => item.id === invoiceId);
+  if (!invoice) return false;
+  if (!confirm(`ลบใบแจ้งหนี้ ${invoice.invoiceNumber || ""} ใช่ไหม? รายการรับเงินและใบเสร็จที่เกี่ยวข้องจะถูกลบด้วย`)) return false;
+  state.invoices = state.invoices.filter((item) => item.id !== invoiceId);
+  state.payments = state.payments.filter((payment) => payment.invoiceId !== invoiceId);
+  state.receipts = state.receipts.filter((receipt) => receipt.invoiceId !== invoiceId);
+  const quote = state.quotes.find((item) => item.createdInvoiceId === invoiceId || item.id === invoice.quoteId);
+  if (quote) {
+    quote.status = "sent";
+    quote.createdInvoiceId = "";
+  }
+  addActivity("invoice", invoiceId, `ลบใบแจ้งหนี้ ${invoice.invoiceNumber || ""}`);
+  if (invoice.customerId) addActivity("customer", invoice.customerId, `ลบใบแจ้งหนี้ ${invoice.invoiceNumber || ""}`);
+  saveState();
+  if (document.querySelector("#view")) renderInvoices();
+  return true;
 }
 
 function showInvoiceEditor(options = {}) {
@@ -1133,18 +1332,7 @@ function showPaymentForm(invoiceId) {
     };
     state.payments.unshift(payment);
     recalcInvoice(invoice);
-    const receipt = {
-      id: uid("rc"),
-      receiptNumber: nextNumber("RC"),
-      invoiceId,
-      paymentId: payment.id,
-      customerId: invoice.customerId,
-      issueDate: data.paymentDate,
-      amount: payment.amount,
-      note: payment.note,
-      createdAt: new Date().toISOString(),
-    };
-    state.receipts.unshift(receipt);
+    const receipt = createReceiptForPayment(invoice, payment);
     addActivity("payment", payment.id, `รับเงิน ${money(payment.amount)} บาท จาก ${invoice.invoiceNumber}`);
     addActivity("invoice", invoice.id, `รับเงิน ${money(payment.amount)} บาท`);
     addActivity("customer", invoice.customerId, `รับเงิน ${money(payment.amount)} บาท และออกใบเสร็จ ${receipt.receiptNumber}`);
@@ -1153,12 +1341,71 @@ function showPaymentForm(invoiceId) {
   });
 }
 
+function createReceiptForPayment(invoice, payment) {
+  const existing = state.receipts.find((receipt) => receipt.paymentId === payment.id);
+  if (existing) return existing;
+  const receipt = {
+    id: uid("rc"),
+    receiptNumber: nextNumber("RC"),
+    invoiceId: invoice.id,
+    paymentId: payment.id,
+    customerId: invoice.customerId,
+    issueDate: payment.paymentDate,
+    amount: payment.amount,
+    note: payment.note,
+    createdAt: new Date().toISOString(),
+  };
+  state.receipts.unshift(receipt);
+  return receipt;
+}
+
+function openReceiptForInvoice(invoiceId) {
+  const invoice = state.invoices.find((item) => item.id === invoiceId);
+  if (!invoice) return;
+  let receipt = state.receipts.find((item) => item.invoiceId === invoiceId);
+  if (!receipt) {
+    const payment = invoicePayments(invoiceId)[0];
+    if (!payment) {
+      alert("ยังไม่มีรายการรับเงินสำหรับออกใบเสร็จ");
+      return;
+    }
+    receipt = createReceiptForPayment(invoice, payment);
+    saveState();
+  }
+  renderDocument("receipt", receipt.id);
+}
+
 function renderPayments() {
   const rows = state.payments.map((payment) => {
     const invoice = state.invoices.find((item) => item.id === payment.invoiceId);
-    return [thaiDate(payment.paymentDate), invoice?.invoiceNumber || "-", customerById(payment.customerId)?.name || "-", payment.paymentMethod, `${money(payment.amount)} บาท`, payment.attachment?.name || "-"];
+    return [
+      thaiDate(payment.paymentDate),
+      invoice?.invoiceNumber || "-",
+      customerById(payment.customerId)?.name || "-",
+      payment.paymentMethod,
+      `${money(payment.amount)} บาท`,
+      payment.attachment?.name || "-",
+      `<button class="button danger" data-delete-payment="${payment.id}">ลบ</button>`,
+    ];
   });
-  page("รับเงิน", "ประวัติการรับเงินและหลักฐาน", "", rows.length ? table(["วันที่", "Invoice", "ลูกค้า", "วิธี", "จำนวน", "หลักฐาน"], rows) : `<div class="empty">ยังไม่มีการรับเงิน</div>`);
+  page("รับเงิน", "ประวัติการรับเงินและหลักฐาน", "", rows.length ? table(["วันที่", "Invoice", "ลูกค้า", "วิธี", "จำนวน", "หลักฐาน", "จัดการ"], rows) : `<div class="empty">ยังไม่มีการรับเงิน</div>`);
+  document.querySelectorAll("[data-delete-payment]").forEach((button) => button.addEventListener("click", () => deletePayment(button.dataset.deletePayment)));
+}
+
+function deletePayment(paymentId) {
+  const payment = state.payments.find((item) => item.id === paymentId);
+  if (!payment) return false;
+  const invoice = state.invoices.find((item) => item.id === payment.invoiceId);
+  if (!confirm(`ลบรายการรับเงิน ${money(payment.amount)} บาท ใช่ไหม? ใบเสร็จที่ผูกกับรายการนี้จะถูกลบด้วย`)) return false;
+  state.payments = state.payments.filter((item) => item.id !== paymentId);
+  state.receipts = state.receipts.filter((receipt) => receipt.paymentId !== paymentId);
+  if (invoice) recalcInvoice(invoice);
+  addActivity("payment", paymentId, `ลบรายการรับเงิน ${money(payment.amount)} บาท`);
+  if (invoice) addActivity("invoice", invoice.id, `ลบรายการรับเงิน ${money(payment.amount)} บาท`);
+  if (payment.customerId) addActivity("customer", payment.customerId, `ลบรายการรับเงิน ${money(payment.amount)} บาท`);
+  saveState();
+  if (document.querySelector("#view")) renderPayments();
+  return true;
 }
 
 function renderReceipts() {
@@ -1167,10 +1414,26 @@ function renderReceipts() {
     customerById(receipt.customerId)?.name || "-",
     thaiDate(receipt.issueDate),
     `${money(receipt.amount)} บาท`,
-    `<button class="button" data-view-receipt="${receipt.id}">ดู</button>`,
+    `<button class="button" data-view-receipt="${receipt.id}">ดู</button>
+     <button class="button danger" data-delete-receipt="${receipt.id}">ลบ</button>`,
   ]);
   page("ใบเสร็จ", "เอกสารรับเงินที่ออกแล้ว", "", rows.length ? table(["เลข", "ลูกค้า", "วันที่", "จำนวน", "จัดการ"], rows) : `<div class="empty">ยังไม่มีใบเสร็จ</div>`);
   document.querySelectorAll("[data-view-receipt]").forEach((button) => button.addEventListener("click", () => renderDocument("receipt", button.dataset.viewReceipt)));
+  document.querySelectorAll("[data-delete-receipt]").forEach((button) => button.addEventListener("click", () => deleteReceipt(button.dataset.deleteReceipt)));
+}
+
+function deleteReceipt(receiptId) {
+  const receipt = state.receipts.find((item) => item.id === receiptId);
+  if (!receipt) return false;
+  if (!confirm(`ลบใบเสร็จ ${receipt.receiptNumber || ""} ใช่ไหม? รายการรับเงินจะยังอยู่`)) return false;
+  state.receipts = state.receipts.filter((item) => item.id !== receiptId);
+  const invoice = state.invoices.find((item) => item.id === receipt.invoiceId);
+  if (invoice) recalcInvoice(invoice);
+  addActivity("receipt", receiptId, `ลบใบเสร็จ ${receipt.receiptNumber || ""}`);
+  if (receipt.customerId) addActivity("customer", receipt.customerId, `ลบใบเสร็จ ${receipt.receiptNumber || ""}`);
+  saveState();
+  if (document.querySelector("#view")) renderReceipts();
+  return true;
 }
 
 function renderDocument(type, id) {
@@ -1185,23 +1448,24 @@ function renderDocument(type, id) {
     "Preview / print เอกสาร",
     `<button class="button no-print" data-action="back-docs">กลับ</button>
      <button class="button primary no-print" onclick="window.print()">พิมพ์ / บันทึก PDF</button>
+     ${type === "quote" ? `<button class="button no-print" data-edit-quote="${doc.id}">แก้ไข</button>` : ""}
      ${type === "quote" && doc.status !== "confirmed" ? `<button class="button success no-print" data-confirm-quote="${doc.id}">คอนเฟิร์มเป็น invoice</button>` : ""}
-     ${type === "invoice" && doc.status !== "paid" ? `<button class="button primary no-print" data-receive="${doc.id}">รับเงิน</button>` : ""}`,
+     ${type === "invoice" && doc.status !== "paid" ? `<button class="button primary no-print" data-receive="${doc.id}">รับเงิน</button>` : ""}
+     ${type === "invoice" && Number(doc.paidAmount || 0) > 0 ? `<button class="button success no-print" data-receipt-invoice="${doc.id}">ใบเสร็จ</button>` : ""}
+     ${type === "invoice" ? `<button class="button danger no-print" data-delete-invoice="${doc.id}">ลบใบแจ้งหนี้</button>` : ""}
+     ${type === "receipt" ? `<button class="button danger no-print" data-delete-receipt="${doc.id}">ลบใบเสร็จ</button>` : ""}`,
     `
-      <article class="document">
-        <header class="document-head">
-          <div>
-            <p class="document-label">${meta.label}</p>
-            <h2>${meta.title}</h2>
+      <article class="document classic-bill">
+        <header class="classic-bill-head">
+          <h2>${meta.title}</h2>
+          <div class="bill-date-block">
+            <p>${documentDateHtml(type, doc, base)}</p>
+            ${documentNumberHtml(type, doc)}
           </div>
         </header>
-        <section class="document-parties">
-          <div class="document-party document-seller">${documentSellerHtml()}</div>
-          <div class="document-party document-customer">${documentCustomerHtml(base, customer)}</div>
-          <div class="document-party document-meta">
-            ${documentNumberHtml(type, doc)}
-            <p>${documentDateHtml(type, doc, base)}</p>
-          </div>
+        <section class="bill-party-freeform">
+          <div class="bill-party">${documentSellerHtml()}</div>
+          <div class="bill-party">${documentCustomerHtml(base, customer)}</div>
         </section>
         ${type === "receipt" ? receiptBody(doc, invoiceForReceipt) : documentItems(base)}
       </article>
@@ -1210,38 +1474,127 @@ function renderDocument(type, id) {
   document.querySelector('[data-action="back-docs"]').addEventListener("click", () => (type === "quote" ? renderQuotes() : type === "invoice" ? renderInvoices() : renderReceipts()));
   document.querySelector("[data-confirm-quote]")?.addEventListener("click", () => confirmQuote(doc.id));
   document.querySelector("[data-receive]")?.addEventListener("click", () => showPaymentForm(doc.id));
+  document.querySelector("[data-edit-quote]")?.addEventListener("click", () => showQuoteEditor({ quoteId: doc.id }));
+  document.querySelector("[data-receipt-invoice]")?.addEventListener("click", () => openReceiptForInvoice(doc.id));
+  document.querySelector("[data-delete-invoice]")?.addEventListener("click", () => deleteInvoice(doc.id));
+  document.querySelector("[data-delete-receipt]")?.addEventListener("click", () => deleteReceipt(doc.id));
 }
 
 function documentItems(doc) {
   return `
-    <div style="margin-top: 20px">
+    <div class="bill-body">
       ${renderOriginalDocumentItems(doc)}
-      <div class="grid" style="justify-items:end;margin-top:18px">${summaryHtml(doc)}</div>
-      ${documentNoteHtml(doc)}
-      ${paymentInfoHtml()}
     </div>
   `;
 }
 
+function paymentLineHtml() {
+  const accountNameLabel = documentLabel("accountName");
+  const accountNoLabel = documentLabel("savingsAccountNo");
+  const accountNameText = accountNameLabel ? ` ${accountNameLabel} ${state.settings.bankAccountName}` : ` ${state.settings.bankAccountName}`;
+  const accountNoText = accountNoLabel ? `${accountNoLabel} ${state.settings.bankAccountNumber}` : state.settings.bankAccountNumber;
+  return `
+    <strong>${[documentLabel("paymentTo"), state.settings.bankName].filter(Boolean).join(" : ")}${accountNameText}</strong><br>
+    ${accountNoText}
+  `;
+}
+
 function renderOriginalDocumentItems(doc) {
-  return table(
-    ["ลำดับที่<br>ITEM", "รายละเอียด<br>PARTICULARS", "จำนวน<br>QUANTITY", "ราคาหน่วย<br>UNIT PRICE", "จำนวนเงิน<br>AMOUNT"],
-    doc.items.map((item, index) => [
-      `${index + 1}.`,
-      item.description,
-      money(item.quantity),
-      money(item.unitPrice),
-      `${money(item.amount)} บาท`,
-    ])
-  );
+  const itemCount = (doc.items || []).length;
+  const densityClass = itemCount <= 2 ? "bill-lines-spacious" : itemCount <= 4 ? "bill-lines-standard" : itemCount <= 7 ? "bill-lines-compact" : "bill-lines-dense";
+  const rows = [...(doc.items || [])];
+  while (rows.length < 4) rows.push(null);
+  const calc = calculate(doc.items || [], doc.withholdingEnabled !== false, doc.withholdingPercent ?? state.settings.defaultWithholdingPercent);
+  const subtotal = doc.subtotal ?? calc.subtotal;
+  const withholdingPercent = doc.withholdingPercent ?? calc.withholdingPercent;
+  const withholdingAmount = doc.withholdingAmount ?? calc.withholdingAmount;
+  const totalDue = doc.totalDue ?? calc.totalDue;
+  const paidAmount = Number(doc.paidAmount || 0);
+  const note = String(doc.note || "").trim() || DEFAULT_BILL_NOTE;
+  const qrHtml = state.settings.qrCodeImage ? `<img class="bill-payment-qr qr-code" src="${state.settings.qrCodeImage}" alt="Payment QR Code">` : "";
+  return `
+    <table class="bill-line-table ${densityClass}">
+      <colgroup>
+        <col class="bill-col-item">
+        <col class="bill-col-desc">
+        <col class="bill-col-qty">
+        <col class="bill-col-price">
+        <col class="bill-col-amount">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>${documentLabel("item")}</th>
+          <th>${documentLabel("particulars")}</th>
+          <th>${documentLabel("quantity")}</th>
+          <th>${documentLabel("unitPrice")}</th>
+          <th>${documentLabel("amount")}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map((item, index) => `
+          <tr class="${item ? "bill-row-item" : "bill-row-filler"}">
+            <td>${item ? `${index + 1}.` : ""}</td>
+            <td>${item?.description || ""}</td>
+            <td>${item ? money(item.quantity) : ""}</td>
+            <td>${item ? money(item.unitPrice) : ""}</td>
+            <td>${item ? `${money(item.amount)} บาท` : ""}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+    <table class="bill-footer-table">
+      <colgroup>
+        <col class="bill-col-item">
+        <col class="bill-col-desc">
+        <col class="bill-col-qty">
+        <col class="bill-col-price">
+        <col class="bill-col-amount">
+      </colgroup>
+      <tr>
+        <td class="bill-note-cell" colspan="3" rowspan="3">
+          ${documentLabel("note") ? `<strong>${documentLabel("note")} :</strong>` : ""}
+          <div>${note}</div>
+        </td>
+        <th>${documentLabel("subtotal")}</th>
+        <td>${money(subtotal)} บาท</td>
+      </tr>
+      <tr>
+        <th>${documentLabel("withholdingTax") ? `${documentLabel("withholdingTax")} ${money(withholdingPercent)}%` : ""}</th>
+        <td>${money(withholdingAmount)} บาท</td>
+      </tr>
+      <tr>
+        <th>${documentLabel("paid")}</th>
+        <td>${paidAmount ? `${money(paidAmount)} บาท` : "-"}</td>
+      </tr>
+      <tr>
+        <td class="bill-payment-cell" colspan="3" rowspan="2">
+          <div class="bill-payment-content">
+            <div>
+              ${paymentLineHtml()}
+            </div>
+            ${qrHtml}
+          </div>
+        </td>
+        <th>${documentLabel("totalDue")}</th>
+        <td></td>
+      </tr>
+      <tr>
+        <th>${documentLabel("amount")}</th>
+        <td>${money(totalDue)} บาท</td>
+      </tr>
+    </table>
+  `;
 }
 
 function receiptBody(receipt, invoice) {
   const payment = state.payments.find((item) => item.id === receipt.paymentId);
   return `
     <section style="margin-top: 20px">
-      ${table(["อ้างอิง", "วิธีชำระ", "จำนวนเงิน"], [[invoice?.invoiceNumber || "-", payment?.paymentMethod || "-", `${money(receipt.amount)} บาท`]])}
-      <div class="document-box" style="margin-top:20px"><strong>หมายเหตุ</strong><br>${receipt.note || "-"}<br><br><strong>หลักฐาน</strong><br>${payment?.attachment?.name || "-"}</div>
+      ${table([documentLabel("reference"), documentLabel("paymentMethod"), documentLabel("amount")], [[invoice?.invoiceNumber || "-", payment?.paymentMethod || "-", `${money(receipt.amount)} บาท`]])}
+      <div class="document-box" style="margin-top:20px">
+        ${documentLabel("note") ? `<strong>${documentLabel("note")}</strong><br>` : ""}${receipt.note || "-"}<br><br>
+        ${documentLabel("attachment") ? `<strong>${documentLabel("attachment")}</strong><br>` : ""}${payment?.attachment?.name || "-"}
+      </div>
       ${paymentInfoHtml()}
     </section>
   `;
@@ -1404,6 +1757,19 @@ function renderSettings() {
         </div>
         <div class="actions span-2"><button class="button primary" type="submit">บันทึก</button><button class="button danger" type="button" id="logoutButton">ออกจากระบบ</button></div>
       </form>
+      <section class="card document-label-settings" style="margin-top:16px">
+        <div class="section-head compact">
+          <div>
+            <h2>Document labels</h2>
+            <p>แก้ชื่อหัวข้อบนใบเอกสารได้ทั้งหมด ถ้าไม่อยากแสดงหัวข้อไหนให้ลบข้อความในช่องนั้นแล้วบันทึก</p>
+          </div>
+          <button class="button" type="button" id="resetDocumentLabels">คืนค่าเริ่มต้น</button>
+        </div>
+        <form class="form-grid" id="documentLabelsForm">
+          ${renderDocumentLabelInputs()}
+          <div class="actions span-2"><button class="button primary" type="submit">บันทึกหัวข้อ</button></div>
+        </form>
+      </section>
       <section class="card data-tools" style="margin-top:16px">
         <div>
           <h2>สำรองข้อมูล</h2>
@@ -1418,10 +1784,27 @@ function renderSettings() {
   );
   document.querySelector("#settingsForm").addEventListener("submit", (event) => {
     event.preventDefault();
-    Object.assign(state.settings, Object.fromEntries(new FormData(event.target).entries()));
-    state.settings.defaultWithholdingPercent = Number(state.settings.defaultWithholdingPercent || 0);
+    const formValues = Object.fromEntries(new FormData(event.target).entries());
+    Object.assign(state.settings, formValues);
+    state.settings.defaultWithholdingPercent = Number(formValues.defaultWithholdingPercent || 0);
     saveState();
     alert("บันทึกแล้ว");
+  });
+  document.querySelector("#documentLabelsForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const formValues = Object.fromEntries(new FormData(event.target).entries());
+    state.settings.documentLabels = { ...state.settings.documentLabels };
+    Object.entries(formValues).forEach(([key, value]) => {
+      state.settings.documentLabels[key.replace("documentLabels.", "")] = String(value);
+    });
+    saveState();
+    alert("บันทึกหัวข้อแล้ว");
+  });
+  document.querySelector("#resetDocumentLabels").addEventListener("click", () => {
+    if (!confirm("คืนค่าหัวข้อเอกสารเป็นค่าเริ่มต้นทั้งหมดใช่ไหม?")) return;
+    state.settings.documentLabels = { ...DEFAULT_DOCUMENT_LABELS };
+    saveState();
+    renderSettings();
   });
   document.querySelector("#logoutButton").addEventListener("click", () => {
     sessionStorage.removeItem(PIN_KEY);
@@ -1435,6 +1818,15 @@ function renderSettings() {
   });
   document.querySelector("#exportBackupButton").addEventListener("click", exportBackup);
   document.querySelector("#importBackupInput").addEventListener("change", importBackup);
+}
+
+function renderDocumentLabelInputs() {
+  return documentLabelGroups.map(([groupName, labels]) => `
+    <div class="span-2 label-group-title">${groupName}</div>
+    ${labels.map(([key, thaiHint]) => `
+      <label>${thaiHint}<input name="documentLabels.${key}" value="${documentLabel(key)}" placeholder="ไม่แสดงถ้าปล่อยว่าง"></label>
+    `).join("")}
+  `).join("");
 }
 
 function updateQrCodeImage(event) {
@@ -1497,7 +1889,7 @@ async function importBackup(event) {
     state = {
       ...base,
       ...incoming,
-      settings: { ...base.settings, ...(incoming.settings || {}) },
+      settings: mergeSettings(base.settings, incoming.settings),
       counters: { ...base.counters, ...(incoming.counters || {}) },
     };
     saveState();
