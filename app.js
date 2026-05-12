@@ -195,17 +195,50 @@ function saveState() {
 
 function loadCloudConfig() {
   try {
-    return JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY) || "{}");
+    const config = JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY) || "{}");
+    return {
+      supabaseUrl: normalizeSupabaseUrl(config.supabaseUrl || ""),
+      supabaseAnonKey: isSecretSupabaseKey(config.supabaseAnonKey) ? "" : String(config.supabaseAnonKey || "").trim(),
+    };
   } catch {
     return {};
   }
 }
 
+function normalizeSupabaseUrl(value) {
+  return String(value || "").trim().replace(/\/rest\/v1\/?$/i, "").replace(/\/+$/, "");
+}
+
+function isSecretSupabaseKey(value) {
+  return String(value || "").trim().startsWith("sb_secret_");
+}
+
+function validateCloudConfig(config) {
+  const supabaseUrl = normalizeSupabaseUrl(config.supabaseUrl);
+  const supabaseAnonKey = String(config.supabaseAnonKey || "").trim();
+  if (!/^https:\/\/[^/]+\.supabase\.co$/.test(supabaseUrl)) {
+    throw new Error("Supabase URL ต้องเป็นรูปแบบ https://PROJECT.supabase.co ไม่ต้องใส่ /rest/v1");
+  }
+  if (isSecretSupabaseKey(supabaseAnonKey)) {
+    throw new Error("ห้ามใช้ sb_secret key บนหน้าเว็บ ให้ใช้ Publishable key หรือ anon public key เท่านั้น");
+  }
+  if (!supabaseAnonKey || (!supabaseAnonKey.startsWith("sb_publishable_") && !supabaseAnonKey.startsWith("eyJ"))) {
+    throw new Error("Supabase key ต้องเป็น Publishable key หรือ anon public key");
+  }
+  return { supabaseUrl, supabaseAnonKey };
+}
+
+function validateCloudCredentials(values) {
+  const email = String(values.email || "").trim();
+  const password = String(values.password || "");
+  if (!email || !password) {
+    throw new Error("กรอก Email และ Password ก่อน");
+  }
+  return { email, password };
+}
+
 function saveCloudConfig(config) {
-  const cleanConfig = {
-    supabaseUrl: String(config.supabaseUrl || "").trim(),
-    supabaseAnonKey: String(config.supabaseAnonKey || "").trim(),
-  };
+  const cleanConfig = validateCloudConfig(config);
   localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cleanConfig));
   cloudClient = null;
   return cleanConfig;
@@ -563,9 +596,15 @@ function renderLogin() {
         <p class="eyebrow">Kantana ERP</p>
         <h1>เข้าสู่ระบบ</h1>
         <p>${cloudConfigured ? "เข้าสู่ระบบด้วยอีเมลเพื่อใช้ฐานข้อมูล Cloud" : "ตั้งค่า Supabase ก่อนเพื่อใช้งานข้อมูลออนไลน์"}</p>
-        <form class="cloud-config-form" id="cloudConfigForm">
+        ${cloudConfigured ? `
+          <div class="cloud-config-summary">
+            <span>Cloud พร้อมใช้งาน</span>
+            <button class="button ghost" type="button" id="editCloudConfigButton">แก้ไข Cloud config</button>
+          </div>
+        ` : ""}
+        <form class="cloud-config-form ${cloudConfigured ? "hidden" : ""}" id="cloudConfigForm">
           <label>Supabase URL<input name="supabaseUrl" value="${cloudConfig.supabaseUrl || ""}" placeholder="https://xxxx.supabase.co"></label>
-          <label>Supabase anon key<input name="supabaseAnonKey" value="${cloudConfig.supabaseAnonKey || ""}" placeholder="eyJ..."></label>
+          <label>Publishable / anon key<input name="supabaseAnonKey" value="${cloudConfig.supabaseAnonKey || ""}" placeholder="sb_publishable_... หรือ eyJ..."></label>
           <button class="button" type="submit">บันทึกค่า Cloud</button>
         </form>
         <form class="cloud-login-form" id="cloudLoginForm">
@@ -579,16 +618,24 @@ function renderLogin() {
       </section>
     </main>
   `;
+  document.querySelector("#editCloudConfigButton")?.addEventListener("click", () => {
+    document.querySelector("#cloudConfigForm")?.classList.remove("hidden");
+    document.querySelector(".cloud-config-summary")?.classList.add("hidden");
+  });
   document.querySelector("#cloudConfigForm").addEventListener("submit", (event) => {
     event.preventDefault();
-    saveCloudConfig(Object.fromEntries(new FormData(event.target).entries()));
-    alert("บันทึกค่า Cloud แล้ว");
-    renderLogin();
+    try {
+      saveCloudConfig(Object.fromEntries(new FormData(event.target).entries()));
+      alert("บันทึกค่า Cloud แล้ว");
+      renderLogin();
+    } catch (error) {
+      alert(error.message || error);
+    }
   });
   document.querySelector("#cloudLoginForm").addEventListener("submit", async (event) => {
     event.preventDefault();
-    const formValues = Object.fromEntries(new FormData(event.target).entries());
     try {
+      const formValues = validateCloudCredentials(Object.fromEntries(new FormData(event.target).entries()));
       await cloudSignIn(formValues.email, formValues.password);
       await loadCloudState();
       sessionStorage.setItem(SESSION_KEY, SESSION_MODE_CLOUD);
@@ -599,8 +646,8 @@ function renderLogin() {
   });
   document.querySelector("#cloudSignUpButton").addEventListener("click", async () => {
     const form = document.querySelector("#cloudLoginForm");
-    const formValues = Object.fromEntries(new FormData(form).entries());
     try {
+      const formValues = validateCloudCredentials(Object.fromEntries(new FormData(form).entries()));
       await cloudSignUp(formValues.email, formValues.password);
       await loadCloudState();
       sessionStorage.setItem(SESSION_KEY, SESSION_MODE_CLOUD);

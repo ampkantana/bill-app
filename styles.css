@@ -157,6 +157,30 @@ label {
   margin-top: 14px;
 }
 
+.cloud-config-form.hidden,
+.cloud-config-summary.hidden {
+  display: none;
+}
+
+.cloud-config-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px;
+  color: var(--success);
+  background: var(--success-soft);
+  border: 1px solid rgba(99, 112, 82, 0.28);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.button.ghost {
+  background: rgba(255, 250, 246, 0.58);
+}
+
 .local-login {
   margin-top: 16px;
   color: var(--muted);
