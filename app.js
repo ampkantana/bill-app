@@ -1706,7 +1706,8 @@ function renderDocument(type, id) {
     meta.title,
     "Preview / print เอกสาร",
     `<button class="button no-print" data-action="back-docs">กลับ</button>
-     <button class="button primary no-print" data-action="print-document">พิมพ์ / บันทึก PDF</button>
+     <button class="button primary no-print" data-action="export-document-pdf">บันทึก PDF เต็มหน้า</button>
+     <button class="button no-print" data-action="print-document">พิมพ์</button>
      ${type === "quote" ? `<button class="button no-print" data-edit-quote="${doc.id}">แก้ไข</button>` : ""}
      ${type === "quote" && doc.status !== "confirmed" ? `<button class="button success no-print" data-confirm-quote="${doc.id}">คอนเฟิร์มเป็น invoice</button>` : ""}
      ${type === "invoice" && doc.status !== "paid" ? `<button class="button primary no-print" data-receive="${doc.id}">รับเงิน</button>` : ""}
@@ -1738,6 +1739,7 @@ function renderDocument(type, id) {
   document.querySelector("[data-delete-invoice]")?.addEventListener("click", () => deleteInvoice(doc.id));
   document.querySelector("[data-delete-receipt]")?.addEventListener("click", () => deleteReceipt(doc.id));
   document.querySelector('[data-action="print-document"]').addEventListener("click", () => printDocument(printTitle));
+  document.querySelector('[data-action="export-document-pdf"]').addEventListener("click", () => exportDocumentPdf(printTitle));
 }
 
 function documentPrintFitClass(type, doc = {}) {
@@ -1770,6 +1772,42 @@ function printDocument(printTitle = "Kantana Billing ERP") {
       setTimeout(cleanupPrintTitle, 1200);
     });
   });
+}
+
+async function exportDocumentPdf(printTitle = "Kantana Billing ERP") {
+  const printable = document.querySelector(".classic-bill");
+  const htmlToCanvas = window.html2canvas;
+  const jsPDF = window.jspdf?.jsPDF;
+  if (!printable) {
+    alert("ยังไม่พบเอกสารสำหรับบันทึก PDF");
+    return;
+  }
+  if (!htmlToCanvas || !jsPDF) {
+    alert("โหลดตัวสร้าง PDF ยังไม่สำเร็จ ลองรีเฟรชหน้าเว็บแล้วกดอีกครั้ง");
+    return;
+  }
+  document.body.classList.add("is-exporting-pdf");
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  try {
+    const canvas = await htmlToCanvas(printable, {
+      backgroundColor: null,
+      scale: Math.min(3, Math.max(2, window.devicePixelRatio || 2)),
+      useCORS: true,
+      logging: false,
+      width: printable.offsetWidth,
+      height: printable.offsetHeight,
+      windowWidth: printable.scrollWidth,
+      windowHeight: printable.scrollHeight,
+    });
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
+    pdf.addImage(canvas.toDataURL("image/jpeg", 0.98), "JPEG", 0, 0, 210, 297, undefined, "FAST");
+    pdf.save(`${printTitle}.pdf`);
+  } catch (error) {
+    console.error(error);
+    alert("บันทึก PDF ไม่สำเร็จ ลองรีเฟรชหน้าเว็บแล้วกดอีกครั้ง");
+  } finally {
+    document.body.classList.remove("is-exporting-pdf");
+  }
 }
 
 function documentItems(doc) {
