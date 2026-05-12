@@ -23,7 +23,7 @@ echo
 echo "Preparing commit..."
 git add app.js index.html styles.css tests/document-ui.test.js \
   start-bill-app.command start-public-tunnel.command publish-github-pages.command \
-  .gitignore .nojekyll .github/workflows/deploy-pages.yml
+  .gitignore .nojekyll supabase/schema.sql
 
 if git diff --cached --quiet; then
   echo "No new changes to publish."

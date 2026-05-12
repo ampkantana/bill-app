@@ -1,5 +1,8 @@
 const STORAGE_KEY = "kantana-erp-v1";
-const PIN_KEY = "kantana-erp-session";
+const SESSION_KEY = "kantana-erp-session";
+const SESSION_MODE_CLOUD = "cloud";
+const CLOUD_CONFIG_KEY = "kantana-erp-cloud-config-v1";
+const CLOUD_TABLE = "app_states";
 const DEFAULT_BILL_NOTE = `-ปรับแก้จำนวน 2 ครั้ง หลังจากส่งครั้งแรก รวมจะได้ภาพไฟนอล ทั้งหมด 3 ครั้ง
 -มัดจำ 70% ก่อนส่งงานครั้งแรก
 -ส่วนที่เหลือหลัง จากแก้ไข้ตามรายละเอียดอีกที`;
@@ -44,7 +47,6 @@ const defaultState = {
     qrCodeImage: "",
     defaultWithholdingPercent: 3,
     documentLabels: { ...DEFAULT_DOCUMENT_LABELS },
-    pin: "1234",
   },
   counters: {
     QT: 1,
@@ -80,6 +82,10 @@ let state = loadState();
 let activeView = "dashboard";
 let selectedCustomerId = state.customers[0]?.id || null;
 let selectedDocument = null;
+let cloudClient = null;
+let cloudUser = null;
+let cloudSyncTimer = null;
+let cloudStatusMessage = "";
 
 const navItems = [
   ["dashboard", "Dashboard"],
@@ -154,6 +160,23 @@ function loadState() {
   }
 }
 
+function normalizeState(incoming = {}) {
+  const base = structuredClone(defaultState);
+  return {
+    ...base,
+    ...incoming,
+    settings: mergeSettings(base.settings, incoming.settings),
+    counters: { ...base.counters, ...(incoming.counters || {}) },
+    customers: incoming.customers || base.customers,
+    services: incoming.services || base.services,
+    quotes: incoming.quotes || base.quotes,
+    invoices: incoming.invoices || base.invoices,
+    payments: incoming.payments || base.payments,
+    receipts: incoming.receipts || base.receipts,
+    activities: incoming.activities || base.activities,
+  };
+}
+
 function mergeSettings(baseSettings, incomingSettings = {}) {
   return {
     ...baseSettings,
@@ -167,10 +190,158 @@ function mergeSettings(baseSettings, incomingSettings = {}) {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  scheduleCloudSave();
+}
+
+function loadCloudConfig() {
+  try {
+    return JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveCloudConfig(config) {
+  const cleanConfig = {
+    supabaseUrl: String(config.supabaseUrl || "").trim(),
+    supabaseAnonKey: String(config.supabaseAnonKey || "").trim(),
+  };
+  localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cleanConfig));
+  cloudClient = null;
+  return cleanConfig;
+}
+
+function hasCloudConfig() {
+  const config = loadCloudConfig();
+  return Boolean(config.supabaseUrl && config.supabaseAnonKey);
+}
+
+function getSupabaseFactory() {
+  return globalThis.supabase?.createClient ? globalThis.supabase : null;
+}
+
+function initCloudClient() {
+  if (cloudClient) return cloudClient;
+  const config = loadCloudConfig();
+  const factory = getSupabaseFactory();
+  if (!factory || !config.supabaseUrl || !config.supabaseAnonKey) return null;
+  cloudClient = factory.createClient(config.supabaseUrl, config.supabaseAnonKey);
+  return cloudClient;
+}
+
+function cloudStatusText() {
+  if (!hasCloudConfig()) return "Cloud ยังไม่ตั้งค่า";
+  if (cloudUser?.email) return `Cloud: ${cloudUser.email}`;
+  return cloudStatusMessage || "Cloud ready";
+}
+
+function setCloudStatus(message) {
+  cloudStatusMessage = message;
+}
+
+async function cloudSignIn(email, password) {
+  const client = initCloudClient();
+  if (!client) throw new Error("missing-cloud-config");
+  const { data, error } = await client.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  cloudUser = data.user;
+  return data.user;
+}
+
+async function cloudSignUp(email, password) {
+  const client = initCloudClient();
+  if (!client) throw new Error("missing-cloud-config");
+  const { data, error } = await client.auth.signUp({ email, password });
+  if (error) throw error;
+  cloudUser = data.user;
+  return data.user;
+}
+
+async function cloudSignOut() {
+  const client = initCloudClient();
+  if (client) await client.auth.signOut();
+  cloudUser = null;
+  sessionStorage.removeItem(SESSION_KEY);
+}
+
+async function restoreCloudSession() {
+  const client = initCloudClient();
+  if (!client) return false;
+  const { data, error } = await client.auth.getSession();
+  if (error || !data.session?.user) return false;
+  cloudUser = data.session.user;
+  sessionStorage.setItem(SESSION_KEY, SESSION_MODE_CLOUD);
+  await loadCloudState();
+  return true;
+}
+
+async function loadCloudState() {
+  const client = initCloudClient();
+  if (!client || !cloudUser?.id) return false;
+  const { data, error } = await client
+    .from(CLOUD_TABLE)
+    .select("data")
+    .eq("user_id", cloudUser.id)
+    .maybeSingle();
+  if (error) throw error;
+  if (data?.data) {
+    state = normalizeState(data.data);
+    selectedCustomerId = state.customers[0]?.id || null;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    setCloudStatus("โหลดข้อมูลจาก Cloud แล้ว");
+    return true;
+  }
+  await saveCloudStateNow();
+  setCloudStatus("สร้างฐานข้อมูล Cloud แล้ว");
+  return false;
+}
+
+async function saveCloudStateNow() {
+  const client = initCloudClient();
+  if (!client || !cloudUser?.id) return false;
+  const { error } = await client.from(CLOUD_TABLE).upsert({
+    user_id: cloudUser.id,
+    data: state,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+  setCloudStatus("บันทึกขึ้น Cloud แล้ว");
+  return true;
+}
+
+function scheduleCloudSave() {
+  if (!cloudUser?.id || !initCloudClient()) return;
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = setTimeout(() => {
+    saveCloudStateNow().catch((error) => {
+      console.error(error);
+      setCloudStatus("Cloud sync ไม่สำเร็จ");
+    });
+  }, 700);
+}
+
+async function migrateLocalDataToCloud() {
+  if (!cloudUser?.id) throw new Error("not-signed-in");
+  await saveCloudStateNow();
 }
 
 function isLoggedIn() {
-  return sessionStorage.getItem(PIN_KEY) === "ok";
+  return sessionStorage.getItem(SESSION_KEY) === SESSION_MODE_CLOUD;
+}
+
+function isCloudSession() {
+  return sessionStorage.getItem(SESSION_KEY) === SESSION_MODE_CLOUD;
+}
+
+async function boot() {
+  if (!isLoggedIn() && hasCloudConfig()) {
+    await restoreCloudSession().catch(() => false);
+  }
+  if (isCloudSession() && !cloudUser?.id) {
+    const restored = await restoreCloudSession().catch(() => false);
+    if (!restored) sessionStorage.removeItem(SESSION_KEY);
+  }
+  app();
 }
 
 function money(value) {
@@ -384,29 +555,59 @@ function app() {
 }
 
 function renderLogin() {
+  const cloudConfig = loadCloudConfig();
+  const cloudConfigured = hasCloudConfig();
   document.querySelector("#app").innerHTML = `
     <main class="login-screen">
-      <form class="login-card" id="loginForm">
+      <section class="login-card">
         <p class="eyebrow">Kantana ERP</p>
         <h1>เข้าสู่ระบบ</h1>
-        <p>ใส่ PIN เพื่อเข้าโปรแกรมออกเอกสารและติดตามยอดรับเงิน</p>
-        <label>
-          PIN
-          <input id="pinInput" type="password" inputmode="numeric" autocomplete="current-password" placeholder="ค่าเริ่มต้น 1234" />
-        </label>
-        <div class="actions" style="margin-top: 16px">
-          <button class="button primary" type="submit">เข้าสู่ระบบ</button>
-        </div>
-      </form>
+        <p>${cloudConfigured ? "เข้าสู่ระบบด้วยอีเมลเพื่อใช้ฐานข้อมูล Cloud" : "ตั้งค่า Supabase ก่อนเพื่อใช้งานข้อมูลออนไลน์"}</p>
+        <form class="cloud-config-form" id="cloudConfigForm">
+          <label>Supabase URL<input name="supabaseUrl" value="${cloudConfig.supabaseUrl || ""}" placeholder="https://xxxx.supabase.co"></label>
+          <label>Supabase anon key<input name="supabaseAnonKey" value="${cloudConfig.supabaseAnonKey || ""}" placeholder="eyJ..."></label>
+          <button class="button" type="submit">บันทึกค่า Cloud</button>
+        </form>
+        <form class="cloud-login-form" id="cloudLoginForm">
+          <label>Email<input class="cloud-email" name="email" type="email" autocomplete="email" placeholder="you@email.com"></label>
+          <label>Password<input class="cloud-password" name="password" type="password" autocomplete="current-password"></label>
+          <div class="actions">
+            <button class="button primary" type="submit">เข้าสู่ระบบด้วยอีเมล</button>
+            <button class="button" type="button" id="cloudSignUpButton">สร้างผู้ใช้ใหม่</button>
+          </div>
+        </form>
+      </section>
     </main>
   `;
-  document.querySelector("#loginForm").addEventListener("submit", (event) => {
+  document.querySelector("#cloudConfigForm").addEventListener("submit", (event) => {
     event.preventDefault();
-    if (document.querySelector("#pinInput").value === state.settings.pin) {
-      sessionStorage.setItem(PIN_KEY, "ok");
+    saveCloudConfig(Object.fromEntries(new FormData(event.target).entries()));
+    alert("บันทึกค่า Cloud แล้ว");
+    renderLogin();
+  });
+  document.querySelector("#cloudLoginForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const formValues = Object.fromEntries(new FormData(event.target).entries());
+    try {
+      await cloudSignIn(formValues.email, formValues.password);
+      await loadCloudState();
+      sessionStorage.setItem(SESSION_KEY, SESSION_MODE_CLOUD);
       app();
-    } else {
-      alert("PIN ไม่ถูกต้อง");
+    } catch (error) {
+      alert(`เข้าสู่ระบบ Cloud ไม่สำเร็จ: ${error.message || error}`);
+    }
+  });
+  document.querySelector("#cloudSignUpButton").addEventListener("click", async () => {
+    const form = document.querySelector("#cloudLoginForm");
+    const formValues = Object.fromEntries(new FormData(form).entries());
+    try {
+      await cloudSignUp(formValues.email, formValues.password);
+      await loadCloudState();
+      sessionStorage.setItem(SESSION_KEY, SESSION_MODE_CLOUD);
+      alert("สร้างผู้ใช้แล้ว ถ้า Supabase เปิด email confirmation อาจต้องยืนยันอีเมลก่อน");
+      app();
+    } catch (error) {
+      alert(`สร้างผู้ใช้ไม่สำเร็จ: ${error.message || error}`);
     }
   });
 }
@@ -418,6 +619,7 @@ function renderShell() {
         <div class="brand">
           <strong>Kantana ERP</strong>
           <span>Quote to cash workflow</span>
+          <small class="cloud-status">${cloudStatusText()}</small>
         </div>
         <nav class="nav-list">${renderNav()}</nav>
       </aside>
@@ -1740,7 +1942,6 @@ function renderSettings() {
         <label>ชื่อบัญชี<input name="bankAccountName" value="${state.settings.bankAccountName}"></label>
         <label>เลขบัญชี<input name="bankAccountNumber" value="${state.settings.bankAccountNumber}"></label>
         <label>หัก ณ ที่จ่าย %<input name="defaultWithholdingPercent" type="number" value="${state.settings.defaultWithholdingPercent}"></label>
-        <label>PIN<input name="pin" value="${state.settings.pin}"></label>
         <label class="span-2">ที่อยู่<textarea name="address">${state.settings.address}</textarea></label>
         <div class="span-2 qr-setting">
           <div>
@@ -1780,6 +1981,16 @@ function renderSettings() {
           <label class="button file-button">Import JSON<input id="importBackupInput" type="file" accept="application/json,.json"></label>
         </div>
       </section>
+      <section class="card cloud-tools" style="margin-top:16px">
+        <div>
+          <h2>Cloud database</h2>
+          <p>${cloudStatusText()} - ข้อมูลจะ sync ด้วย Supabase เมื่อเข้าสู่ระบบด้วยอีเมล</p>
+        </div>
+        <div class="actions">
+          <button class="button primary" type="button" id="migrateCloudButton">ย้าย/บันทึกข้อมูลนี้ขึ้น Cloud</button>
+          <button class="button" type="button" id="reloadCloudButton">โหลดข้อมูลจาก Cloud</button>
+        </div>
+      </section>
     `
   );
   document.querySelector("#settingsForm").addEventListener("submit", (event) => {
@@ -1807,8 +2018,7 @@ function renderSettings() {
     renderSettings();
   });
   document.querySelector("#logoutButton").addEventListener("click", () => {
-    sessionStorage.removeItem(PIN_KEY);
-    app();
+    cloudSignOut().finally(app);
   });
   document.querySelector("#qrCodeInput").addEventListener("change", updateQrCodeImage);
   document.querySelector("#removeQrButton")?.addEventListener("click", () => {
@@ -1818,6 +2028,24 @@ function renderSettings() {
   });
   document.querySelector("#exportBackupButton").addEventListener("click", exportBackup);
   document.querySelector("#importBackupInput").addEventListener("change", importBackup);
+  document.querySelector("#migrateCloudButton").addEventListener("click", async () => {
+    try {
+      await migrateLocalDataToCloud();
+      alert("ย้ายข้อมูลขึ้น Cloud แล้ว");
+      renderSettings();
+    } catch (error) {
+      alert(`ยังย้ายขึ้น Cloud ไม่สำเร็จ: ${error.message || error}`);
+    }
+  });
+  document.querySelector("#reloadCloudButton").addEventListener("click", async () => {
+    try {
+      await loadCloudState();
+      alert("โหลดข้อมูลจาก Cloud แล้ว");
+      renderSettings();
+    } catch (error) {
+      alert(`โหลดจาก Cloud ไม่สำเร็จ: ${error.message || error}`);
+    }
+  });
 }
 
 function renderDocumentLabelInputs() {
@@ -1902,4 +2130,4 @@ async function importBackup(event) {
   }
 }
 
-app();
+boot();
