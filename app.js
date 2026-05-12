@@ -1696,7 +1696,7 @@ function renderDocument(type, id) {
     meta.title,
     "Preview / print เอกสาร",
     `<button class="button no-print" data-action="back-docs">กลับ</button>
-     <button class="button primary no-print" onclick="window.print()">พิมพ์ / บันทึก PDF</button>
+     <button class="button primary no-print" data-action="print-document">พิมพ์ / บันทึก PDF</button>
      ${type === "quote" ? `<button class="button no-print" data-edit-quote="${doc.id}">แก้ไข</button>` : ""}
      ${type === "quote" && doc.status !== "confirmed" ? `<button class="button success no-print" data-confirm-quote="${doc.id}">คอนเฟิร์มเป็น invoice</button>` : ""}
      ${type === "invoice" && doc.status !== "paid" ? `<button class="button primary no-print" data-receive="${doc.id}">รับเงิน</button>` : ""}
@@ -1727,6 +1727,22 @@ function renderDocument(type, id) {
   document.querySelector("[data-receipt-invoice]")?.addEventListener("click", () => openReceiptForInvoice(doc.id));
   document.querySelector("[data-delete-invoice]")?.addEventListener("click", () => deleteInvoice(doc.id));
   document.querySelector("[data-delete-receipt]")?.addEventListener("click", () => deleteReceipt(doc.id));
+  document.querySelector('[data-action="print-document"]').addEventListener("click", printDocument);
+}
+
+function printDocument() {
+  const printable = document.querySelector(".classic-bill");
+  if (!printable) {
+    alert("ยังไม่พบเอกสารสำหรับพิมพ์");
+    return;
+  }
+  document.body.classList.add("is-printing-document");
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      window.print();
+      setTimeout(() => document.body.classList.remove("is-printing-document"), 600);
+    });
+  });
 }
 
 function documentItems(doc) {

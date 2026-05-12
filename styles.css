@@ -462,6 +462,10 @@ th.num {
   box-shadow: var(--shadow);
 }
 
+.is-printing-document .classic-bill {
+  scroll-margin-top: 0;
+}
+
 .document-label {
   margin: 0 0 5px;
   color: var(--accent);
