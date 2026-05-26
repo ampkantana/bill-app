@@ -1665,16 +1665,56 @@ function deletePayment(paymentId) {
   return true;
 }
 
-function renderReceipts() {
-  const rows = state.receipts.map((receipt) => [
+function filteredReceiptHistory(filters = {}) {
+  const query = String(filters.query || "").trim().toLowerCase();
+  return state.receipts
+    .map((receipt) => {
+      const invoice = state.invoices.find((item) => item.id === receipt.invoiceId);
+      const customer = customerById(receipt.customerId);
+      return { receipt, invoice, customer };
+    })
+    .filter(({ receipt }) => isInDateRange(receipt.issueDate, filters.startDate, filters.endDate))
+    .filter(({ receipt, invoice, customer }) => {
+      if (!query) return true;
+      return [receipt.receiptNumber, invoice?.invoiceNumber, invoice?.projectName, customer?.name]
+        .some((value) => String(value || "").toLowerCase().includes(query));
+    })
+    .sort((left, right) => String(right.receipt.issueDate || "").localeCompare(String(left.receipt.issueDate || "")) || String(right.receipt.receiptNumber || "").localeCompare(String(left.receipt.receiptNumber || "")));
+}
+
+function renderReceipts(filters = {}) {
+  const entries = filteredReceiptHistory(filters);
+  const rows = entries.map(({ receipt, invoice, customer }) => [
     receipt.receiptNumber,
-    customerById(receipt.customerId)?.name || "-",
+    customer?.name || "-",
+    invoice?.projectName || "-",
     thaiDate(receipt.issueDate),
     `${money(receipt.amount)} บาท`,
     `<button class="button" data-view-receipt="${receipt.id}">ดู</button>
      <button class="button danger" data-delete-receipt="${receipt.id}">ลบ</button>`,
   ]);
-  page("ใบเสร็จ", "เอกสารรับเงินที่ออกแล้ว", "", rows.length ? table(["เลข", "ลูกค้า", "วันที่", "จำนวน", "จัดการ"], rows) : `<div class="empty">ยังไม่มีใบเสร็จ</div>`);
+  page(
+    "ใบเสร็จ",
+    "ประวัติใบเสร็จย้อนหลังและเอกสารรับเงินที่ออกแล้ว",
+    "",
+    `
+      <form class="card filter-card receipt-filter-card" id="receiptHistoryFilterForm">
+        <label>ค้นหา<input name="query" value="${filters.query || ""}" placeholder="ค้นหาเลขใบเสร็จ ลูกค้า หรือโปรเจกต์"></label>
+        <label>ตั้งแต่<input name="startDate" type="date" value="${filters.startDate || ""}"></label>
+        <label>ถึงวันที่<input name="endDate" type="date" value="${filters.endDate || ""}"></label>
+        <button class="button primary" type="submit">ค้นหา</button>
+        <button class="button" type="button" data-clear-receipt-filters>ล้าง</button>
+      </form>
+      <section style="margin-top:16px">
+        ${rows.length ? table(["เลข", "ลูกค้า", "โปรเจกต์", "วันที่", "จำนวน", "จัดการ"], rows) : `<div class="empty">ไม่พบใบเสร็จตามที่ค้นหา</div>`}
+      </section>
+    `
+  );
+  document.querySelector("#receiptHistoryFilterForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    renderReceipts(Object.fromEntries(new FormData(event.target).entries()));
+  });
+  document.querySelector("[data-clear-receipt-filters]").addEventListener("click", () => renderReceipts());
   document.querySelectorAll("[data-view-receipt]").forEach((button) => button.addEventListener("click", () => renderDocument("receipt", button.dataset.viewReceipt)));
   document.querySelectorAll("[data-delete-receipt]").forEach((button) => button.addEventListener("click", () => deleteReceipt(button.dataset.deleteReceipt)));
 }

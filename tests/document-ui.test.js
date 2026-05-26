@@ -56,11 +56,12 @@ globalThis.__exports = {
   documentPrintTitle,
   documentPrintFitClass,
   calculatePdfContentScale,
+  filteredReceiptHistory,
   renderDocumentLabelInputs,
   renderOriginalDocumentItems,
 };`, sandbox);
 
-const { defaultState, state, documentTypeMeta, documentDateHtml, documentCustomerHtml, documentSellerHtml, documentNoteHtml, documentLabel, documentNumberHtml, deleteCustomer, deleteQuote, deleteInvoice, deletePayment, deleteReceipt, paymentInfoHtml, documentPrintTitle, documentPrintFitClass, calculatePdfContentScale, renderDocumentLabelInputs, renderOriginalDocumentItems } = sandbox.__exports;
+const { defaultState, state, documentTypeMeta, documentDateHtml, documentCustomerHtml, documentSellerHtml, documentNoteHtml, documentLabel, documentNumberHtml, deleteCustomer, deleteQuote, deleteInvoice, deletePayment, deleteReceipt, paymentInfoHtml, documentPrintTitle, documentPrintFitClass, calculatePdfContentScale, filteredReceiptHistory, renderDocumentLabelInputs, renderOriginalDocumentItems } = sandbox.__exports;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 assert.equal(defaultState.settings.qrCodeImage, "");
@@ -164,6 +165,20 @@ assert.equal(state.receipts.length, 0);
 assert.equal(state.payments.length, 1);
 assert.equal(state.invoices[0].paidAmount, 3000);
 
+state.customers = [{ id: "cus_a", name: "K.GRING" }, { id: "cus_b", name: "Oak House" }];
+state.invoices = [
+  { id: "inv_a", invoiceNumber: "INV-2026-0001", customerId: "cus_a", projectName: "Tone Club" },
+  { id: "inv_b", invoiceNumber: "INV-2026-0002", customerId: "cus_b", projectName: "Office Lobby" },
+];
+state.receipts = [
+  { id: "rc_a", receiptNumber: "RC-2026-0001", invoiceId: "inv_a", customerId: "cus_a", issueDate: "2026-05-05", amount: 3000 },
+  { id: "rc_b", receiptNumber: "RC-2026-0002", invoiceId: "inv_b", customerId: "cus_b", issueDate: "2026-05-20", amount: 8000 },
+];
+assert.deepEqual(filteredReceiptHistory({}).map((entry) => entry.receipt.id), ["rc_b", "rc_a"]);
+assert.deepEqual(filteredReceiptHistory({ query: "tone" }).map((entry) => entry.receipt.id), ["rc_a"]);
+assert.deepEqual(filteredReceiptHistory({ query: "RC-2026-0002" }).map((entry) => entry.receipt.id), ["rc_b"]);
+assert.deepEqual(filteredReceiptHistory({ startDate: "2026-05-10", endDate: "2026-05-30" }).map((entry) => entry.receipt.id), ["rc_b"]);
+
 assert.match(source, /id="quoteQrInput"/);
 assert.match(source, /name="projectName"/);
 assert.doesNotMatch(source, /name="expiryDate"/);
@@ -200,6 +215,8 @@ assert.match(source, /bill-footer-table/);
 assert.match(source, /data-edit-quote/);
 assert.match(source, /syncInvoiceFromQuote/);
 assert.match(source, /data-receipt-invoice/);
+assert.match(source, /id="receiptHistoryFilterForm"/);
+assert.match(source, /ค้นหาเลขใบเสร็จ ลูกค้า หรือโปรเจกต์/);
 assert.match(source, /data-action="print-document"/);
 assert.match(source, /data-action="export-document-pdf"/);
 assert.match(source, /function printDocument/);
