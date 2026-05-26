@@ -1716,18 +1716,20 @@ function renderDocument(type, id) {
      ${type === "receipt" ? `<button class="button danger no-print" data-delete-receipt="${doc.id}">ลบใบเสร็จ</button>` : ""}`,
     `
       <article class="document classic-bill ${fitClass}">
-        <header class="classic-bill-head">
-          <h2>${meta.title}</h2>
-          <div class="bill-date-block">
-            <p>${documentDateHtml(type, doc, base)}</p>
-            ${documentNumberHtml(type, doc)}
-          </div>
-        </header>
-        <section class="bill-party-freeform">
-          <div class="bill-party">${documentSellerHtml()}</div>
-          <div class="bill-party">${documentCustomerHtml(base, customer)}</div>
-        </section>
-        ${type === "receipt" ? receiptBody(doc, invoiceForReceipt) : documentItems(base)}
+        <div class="bill-content">
+          <header class="classic-bill-head">
+            <h2>${meta.title}</h2>
+            <div class="bill-date-block">
+              <p>${documentDateHtml(type, doc, base)}</p>
+              ${documentNumberHtml(type, doc)}
+            </div>
+          </header>
+          <section class="bill-party-freeform">
+            <div class="bill-party">${documentSellerHtml()}</div>
+            <div class="bill-party">${documentCustomerHtml(base, customer)}</div>
+          </section>
+          ${type === "receipt" ? receiptBody(doc, invoiceForReceipt) : documentItems(base)}
+        </div>
       </article>
     `
   );
@@ -1749,6 +1751,23 @@ function documentPrintFitClass(type, doc = {}) {
   if (itemCount >= 10) return "document-fit-dense";
   if (itemCount >= 6) return "document-fit-compact";
   return "document-fit-spacious";
+}
+
+function calculatePdfContentScale(contentHeight, availableHeight) {
+  if (!contentHeight || !availableHeight || contentHeight <= availableHeight) return 1;
+  return Number(Math.max(0.35, (availableHeight - 10) / contentHeight).toFixed(4));
+}
+
+function fitDocumentForPdfExport(printable) {
+  const content = printable.querySelector(".bill-content");
+  if (!content) return 1;
+  content.style.removeProperty("--pdf-content-scale");
+  const computedStyle = window.getComputedStyle(printable);
+  const verticalPadding = Number.parseFloat(computedStyle.paddingTop || 0) + Number.parseFloat(computedStyle.paddingBottom || 0);
+  const availableHeight = Math.max(0, printable.clientHeight - verticalPadding);
+  const scale = calculatePdfContentScale(content.scrollHeight, availableHeight);
+  content.style.setProperty("--pdf-content-scale", String(scale));
+  return scale;
 }
 
 function printDocument(printTitle = "Kantana Billing ERP") {
@@ -1789,6 +1808,8 @@ async function exportDocumentPdf(printTitle = "Kantana Billing ERP") {
   document.body.classList.add("is-exporting-pdf");
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   try {
+    fitDocumentForPdfExport(printable);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
     const canvas = await htmlToCanvas(printable, {
       backgroundColor: null,
       scale: Math.min(3, Math.max(2, window.devicePixelRatio || 2)),
@@ -1806,6 +1827,7 @@ async function exportDocumentPdf(printTitle = "Kantana Billing ERP") {
     console.error(error);
     alert("บันทึก PDF ไม่สำเร็จ ลองรีเฟรชหน้าเว็บแล้วกดอีกครั้ง");
   } finally {
+    printable.querySelector(".bill-content")?.style.removeProperty("--pdf-content-scale");
     document.body.classList.remove("is-exporting-pdf");
   }
 }

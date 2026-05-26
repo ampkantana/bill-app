@@ -55,11 +55,12 @@ globalThis.__exports = {
   paymentInfoHtml,
   documentPrintTitle,
   documentPrintFitClass,
+  calculatePdfContentScale,
   renderDocumentLabelInputs,
   renderOriginalDocumentItems,
 };`, sandbox);
 
-const { defaultState, state, documentTypeMeta, documentDateHtml, documentCustomerHtml, documentSellerHtml, documentNoteHtml, documentLabel, documentNumberHtml, deleteCustomer, deleteQuote, deleteInvoice, deletePayment, deleteReceipt, paymentInfoHtml, documentPrintTitle, documentPrintFitClass, renderDocumentLabelInputs, renderOriginalDocumentItems } = sandbox.__exports;
+const { defaultState, state, documentTypeMeta, documentDateHtml, documentCustomerHtml, documentSellerHtml, documentNoteHtml, documentLabel, documentNumberHtml, deleteCustomer, deleteQuote, deleteInvoice, deletePayment, deleteReceipt, paymentInfoHtml, documentPrintTitle, documentPrintFitClass, calculatePdfContentScale, renderDocumentLabelInputs, renderOriginalDocumentItems } = sandbox.__exports;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 assert.equal(defaultState.settings.qrCodeImage, "");
@@ -77,6 +78,8 @@ assert.equal(documentPrintFitClass("invoice", { items: Array.from({ length: 6 },
 assert.equal(documentPrintFitClass("invoice", { items: Array.from({ length: 10 }, () => ({})) }), "document-fit-dense");
 assert.equal(documentPrintFitClass("invoice", { items: Array.from({ length: 15 }, () => ({})) }), "document-fit-micro");
 assert.equal(documentPrintFitClass("receipt", {}), "document-fit-receipt");
+assert.equal(calculatePdfContentScale(900, 1000), 1);
+assert.equal(calculatePdfContentScale(1200, 1000), 0.825);
 
 assert.match(documentNumberHtml("quote", { quoteNumber: "QT-2026-0001" }), /QT-2026-0001/);
 assert.match(documentNumberHtml("invoice", { invoiceNumber: "INV-2026-0001" }), /INV-2026-0001/);
@@ -202,9 +205,12 @@ assert.match(source, /data-action="export-document-pdf"/);
 assert.match(source, /function printDocument/);
 assert.match(source, /async function exportDocumentPdf/);
 assert.match(source, /pdf\.save\(`\$\{printTitle\}\.pdf`\)/);
+assert.match(source, /calculatePdfContentScale/);
+assert.match(source, /fitDocumentForPdfExport/);
 assert.match(source, /documentPrintTitle/);
 assert.match(source, /documentPrintFitClass/);
 assert.match(source, /classic-bill \$\{fitClass\}/);
+assert.match(source, /bill-content/);
 assert.match(source, /document.title = printTitle/);
 assert.doesNotMatch(source, /onclick="window\.print\(\)"/);
 assert.doesNotMatch(cssSource, /classic-bill::before/);
@@ -249,6 +255,9 @@ assert.match(cssSource, /border-right: 0/);
 assert.match(cssSource, /\.is-exporting-pdf[\s\S]*background: var\(--page-bg\)/);
 assert.match(cssSource, /\.is-exporting-pdf \.classic-bill[\s\S]*width: 210mm/);
 assert.match(cssSource, /\.is-exporting-pdf \.classic-bill[\s\S]*height: 297mm/);
+assert.match(cssSource, /\.is-exporting-pdf \.bill-content[\s\S]*--pdf-content-scale/);
+assert.match(cssSource, /\.is-exporting-pdf \.payment-panel[\s\S]*display: flex/);
+assert.match(cssSource, /\.is-exporting-pdf \.document-payment-grid[\s\S]*grid-template-columns:/);
 
 let paymentInfo = paymentInfoHtml();
 assert.match(paymentInfo, /ธนาคารไทยพาณิชย์/);

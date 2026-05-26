@@ -480,6 +480,23 @@ th.num {
   overflow: hidden;
 }
 
+.is-exporting-pdf .bill-content {
+  --pdf-content-scale: 1;
+  transform: scale(var(--pdf-content-scale));
+  transform-origin: top center;
+}
+
+.is-exporting-pdf .payment-panel {
+  display: flex;
+  align-items: center;
+  padding: 18px 24px;
+}
+
+.is-exporting-pdf .document-payment-grid {
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) minmax(160px, 0.7fr);
+}
+
 .document-label {
   margin: 0 0 5px;
   color: var(--accent);
@@ -694,7 +711,7 @@ th.num {
   -webkit-print-color-adjust: exact;
 }
 
-.classic-bill > * {
+.bill-content {
   position: relative;
   z-index: 1;
 }
