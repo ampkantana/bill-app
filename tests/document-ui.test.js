@@ -26,6 +26,7 @@ const sandbox = {
   Math,
   Number,
   String,
+  URLSearchParams,
   Blob: class Blob {},
   URL: { createObjectURL: () => "blob:test", revokeObjectURL: () => {} },
   localStorage: { getItem: () => null, setItem: () => {} },
@@ -57,11 +58,14 @@ globalThis.__exports = {
   documentPrintFitClass,
   calculatePdfContentScale,
   filteredReceiptHistory,
+  passwordRecoveryRedirectUrl,
+  isPasswordRecoveryUrl,
+  validateNewPassword,
   renderDocumentLabelInputs,
   renderOriginalDocumentItems,
 };`, sandbox);
 
-const { defaultState, state, documentTypeMeta, documentDateHtml, documentCustomerHtml, documentSellerHtml, documentNoteHtml, documentLabel, documentNumberHtml, deleteCustomer, deleteQuote, deleteInvoice, deletePayment, deleteReceipt, paymentInfoHtml, documentPrintTitle, documentPrintFitClass, calculatePdfContentScale, filteredReceiptHistory, renderDocumentLabelInputs, renderOriginalDocumentItems } = sandbox.__exports;
+const { defaultState, state, documentTypeMeta, documentDateHtml, documentCustomerHtml, documentSellerHtml, documentNoteHtml, documentLabel, documentNumberHtml, deleteCustomer, deleteQuote, deleteInvoice, deletePayment, deleteReceipt, paymentInfoHtml, documentPrintTitle, documentPrintFitClass, calculatePdfContentScale, filteredReceiptHistory, passwordRecoveryRedirectUrl, isPasswordRecoveryUrl, validateNewPassword, renderDocumentLabelInputs, renderOriginalDocumentItems } = sandbox.__exports;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 assert.equal(defaultState.settings.qrCodeImage, "");
@@ -81,6 +85,12 @@ assert.equal(documentPrintFitClass("invoice", { items: Array.from({ length: 15 }
 assert.equal(documentPrintFitClass("receipt", {}), "document-fit-receipt");
 assert.equal(calculatePdfContentScale(900, 1000), 1);
 assert.equal(calculatePdfContentScale(1200, 1000), 0.825);
+assert.equal(passwordRecoveryRedirectUrl({ origin: "https://ampkantana.github.io", pathname: "/bill-app/", search: "", hash: "" }), "https://ampkantana.github.io/bill-app/?reset-password=1");
+assert.equal(isPasswordRecoveryUrl({ search: "?reset-password=1", hash: "" }), true);
+assert.equal(isPasswordRecoveryUrl({ search: "", hash: "#access_token=abc&type=recovery" }), true);
+assert.deepEqual(plain(validateNewPassword({ password: "newpass123", confirmPassword: "newpass123" })), { password: "newpass123" });
+assert.throws(() => validateNewPassword({ password: "123", confirmPassword: "123" }), /อย่างน้อย 6 ตัว/);
+assert.throws(() => validateNewPassword({ password: "newpass123", confirmPassword: "wrongpass" }), /ไม่ตรงกัน/);
 
 assert.match(documentNumberHtml("quote", { quoteNumber: "QT-2026-0001" }), /QT-2026-0001/);
 assert.match(documentNumberHtml("invoice", { invoiceNumber: "INV-2026-0001" }), /INV-2026-0001/);
@@ -186,6 +196,10 @@ assert.match(source, /renderOriginalDocumentItems/);
 assert.match(source, /CLOUD_CONFIG_KEY/);
 assert.match(source, /app_states/);
 assert.match(source, /signInWithPassword/);
+assert.match(source, /resetPasswordForEmail/);
+assert.match(source, /updateUser\(\{ password/);
+assert.match(source, /id="forgotPasswordButton"/);
+assert.match(source, /id="resetPasswordForm"/);
 assert.match(source, /migrateLocalDataToCloud/);
 assert.match(source, /cloud-email/);
 assert.match(source, /cloud-password/);

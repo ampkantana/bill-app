@@ -237,6 +237,28 @@ function validateCloudCredentials(values) {
   return { email, password };
 }
 
+function passwordRecoveryRedirectUrl(locationLike = window.location) {
+  return `${locationLike.origin}${locationLike.pathname}?reset-password=1`;
+}
+
+function isPasswordRecoveryUrl(locationLike = window.location) {
+  const search = new URLSearchParams(String(locationLike.search || "").replace(/^\?/, ""));
+  const hash = new URLSearchParams(String(locationLike.hash || "").replace(/^#/, ""));
+  return search.get("reset-password") === "1" || hash.get("type") === "recovery";
+}
+
+function validateNewPassword(values) {
+  const password = String(values.password || "");
+  const confirmPassword = String(values.confirmPassword || "");
+  if (password.length < 6) {
+    throw new Error("รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัว");
+  }
+  if (password !== confirmPassword) {
+    throw new Error("รหัสผ่านใหม่ไม่ตรงกัน");
+  }
+  return { password };
+}
+
 function saveCloudConfig(config) {
   const cleanConfig = validateCloudConfig(config);
   localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cleanConfig));
@@ -285,6 +307,25 @@ async function cloudSignUp(email, password) {
   const client = initCloudClient();
   if (!client) throw new Error("missing-cloud-config");
   const { data, error } = await client.auth.signUp({ email, password });
+  if (error) throw error;
+  cloudUser = data.user;
+  return data.user;
+}
+
+async function cloudRequestPasswordReset(email) {
+  const client = initCloudClient();
+  if (!client) throw new Error("missing-cloud-config");
+  if (!email) throw new Error("กรอก Email ก่อน");
+  const { error } = await client.auth.resetPasswordForEmail(email, {
+    redirectTo: passwordRecoveryRedirectUrl(),
+  });
+  if (error) throw error;
+}
+
+async function cloudUpdatePassword(password) {
+  const client = initCloudClient();
+  if (!client) throw new Error("missing-cloud-config");
+  const { data, error } = await client.auth.updateUser({ password });
   if (error) throw error;
   cloudUser = data.user;
   return data.user;
@@ -598,12 +639,13 @@ function app() {
 function renderLogin() {
   const cloudConfig = loadCloudConfig();
   const cloudConfigured = hasCloudConfig();
+  const passwordRecovery = cloudConfigured && isPasswordRecoveryUrl();
   document.querySelector("#app").innerHTML = `
     <main class="login-screen">
       <section class="login-card">
         <p class="eyebrow">Kantana ERP</p>
-        <h1>เข้าสู่ระบบ</h1>
-        <p>${cloudConfigured ? "เข้าสู่ระบบด้วยอีเมลเพื่อใช้ฐานข้อมูล Cloud" : "ตั้งค่า Supabase ก่อนเพื่อใช้งานข้อมูลออนไลน์"}</p>
+        <h1>${passwordRecovery ? "ตั้งรหัสผ่านใหม่" : "เข้าสู่ระบบ"}</h1>
+        <p>${passwordRecovery ? "ใส่รหัสผ่านใหม่สำหรับบัญชี Cloud ของคุณ" : cloudConfigured ? "เข้าสู่ระบบด้วยอีเมลเพื่อใช้ฐานข้อมูล Cloud" : "ตั้งค่า Supabase ก่อนเพื่อใช้งานข้อมูลออนไลน์"}</p>
         ${cloudConfigured ? `
           <div class="cloud-config-summary">
             <span>Cloud พร้อมใช้งาน</span>
@@ -615,14 +657,23 @@ function renderLogin() {
           <label>Publishable / anon key<input name="supabaseAnonKey" value="${cloudConfig.supabaseAnonKey || ""}" placeholder="sb_publishable_... หรือ eyJ..."></label>
           <button class="button" type="submit">บันทึกค่า Cloud</button>
         </form>
+        ${passwordRecovery ? `
+        <form class="cloud-login-form" id="resetPasswordForm">
+          <label>รหัสผ่านใหม่<input name="password" type="password" autocomplete="new-password" placeholder="อย่างน้อย 6 ตัว"></label>
+          <label>ยืนยันรหัสผ่านใหม่<input name="confirmPassword" type="password" autocomplete="new-password"></label>
+          <button class="button primary" type="submit">บันทึกรหัสผ่านใหม่</button>
+        </form>
+        ` : `
         <form class="cloud-login-form" id="cloudLoginForm">
           <label>Email<input class="cloud-email" name="email" type="email" autocomplete="email" placeholder="you@email.com"></label>
           <label>Password<input class="cloud-password" name="password" type="password" autocomplete="current-password"></label>
           <div class="actions">
             <button class="button primary" type="submit">เข้าสู่ระบบด้วยอีเมล</button>
             <button class="button" type="button" id="cloudSignUpButton">สร้างผู้ใช้ใหม่</button>
+            <button class="button ghost" type="button" id="forgotPasswordButton">ลืมรหัสผ่าน</button>
           </div>
         </form>
+        `}
       </section>
     </main>
   `;
@@ -640,7 +691,21 @@ function renderLogin() {
       alert(error.message || error);
     }
   });
-  document.querySelector("#cloudLoginForm").addEventListener("submit", async (event) => {
+  document.querySelector("#resetPasswordForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      const formValues = validateNewPassword(Object.fromEntries(new FormData(event.target).entries()));
+      await cloudUpdatePassword(formValues.password);
+      window.history.replaceState({}, "", window.location.pathname);
+      await loadCloudState();
+      sessionStorage.setItem(SESSION_KEY, SESSION_MODE_CLOUD);
+      alert("ตั้งรหัสผ่านใหม่เรียบร้อยแล้ว");
+      app();
+    } catch (error) {
+      alert(`ตั้งรหัสผ่านใหม่ไม่สำเร็จ: ${error.message || error}`);
+    }
+  });
+  document.querySelector("#cloudLoginForm")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
       const formValues = validateCloudCredentials(Object.fromEntries(new FormData(event.target).entries()));
@@ -652,7 +717,7 @@ function renderLogin() {
       alert(`เข้าสู่ระบบ Cloud ไม่สำเร็จ: ${error.message || error}`);
     }
   });
-  document.querySelector("#cloudSignUpButton").addEventListener("click", async () => {
+  document.querySelector("#cloudSignUpButton")?.addEventListener("click", async () => {
     const form = document.querySelector("#cloudLoginForm");
     try {
       const formValues = validateCloudCredentials(Object.fromEntries(new FormData(form).entries()));
@@ -663,6 +728,15 @@ function renderLogin() {
       app();
     } catch (error) {
       alert(`สร้างผู้ใช้ไม่สำเร็จ: ${error.message || error}`);
+    }
+  });
+  document.querySelector("#forgotPasswordButton")?.addEventListener("click", async () => {
+    const email = String(document.querySelector(".cloud-email")?.value || "").trim();
+    try {
+      await cloudRequestPasswordReset(email);
+      alert("ส่งอีเมลตั้งรหัสผ่านใหม่แล้ว กรุณาเปิดอีเมลแล้วกดลิงก์");
+    } catch (error) {
+      alert(`ส่งอีเมลตั้งรหัสผ่านใหม่ไม่สำเร็จ: ${error.message || error}`);
     }
   });
 }
