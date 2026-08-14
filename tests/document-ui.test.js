@@ -132,6 +132,7 @@ assert.match(documentNoteHtml({ note: "แก้แบบได้ 2 ครั�
 assert.equal(documentNoteHtml({ note: "" }), "");
 assert.match(documentBillNote({}), /ปรับแก้จำนวน 2 ครั้ง/);
 assert.equal(documentBillNote({ note: "" }), "");
+assert.doesNotMatch(renderOriginalDocumentItems({ note: "", items: [] }), /NOTE\s*:/);
 
 state.customers = [{ id: "cus_delete", name: "Delete Me" }, { id: "cus_keep", name: "Keep Me" }];
 state.quotes = [{ id: "qt_customer_delete", customerId: "cus_delete", quoteNumber: "QT-2026-0001" }];

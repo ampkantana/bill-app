@@ -1262,6 +1262,9 @@ function renderQuoteEditor(draft) {
             <label>วันที่<input name="issueDate" type="date" value="${draft.issueDate}"></label>
             <label>หัก ณ ที่จ่าย %<input name="withholdingPercent" type="number" min="0" value="${draft.withholdingPercent}"></label>
             <label class="span-2">หมายเหตุ<textarea name="note">${documentBillNote(draft)}</textarea></label>
+            <div class="span-2 actions note-actions">
+              <button class="button" id="clearQuoteNote" type="button">ล้างหมายเหตุ</button>
+            </div>
           </div>
           <div class="actions">
             <button class="button" id="createInlineCustomer" type="button">เพิ่มลูกค้าใหม่ในหน้านี้</button>
@@ -1332,6 +1335,12 @@ function bindQuoteEditor(draft) {
     renderQuoteEditor({ ...draft, ...Object.fromEntries(new FormData(form).entries()), customerId: customer.id });
   });
   document.querySelector("#quoteQrInput")?.addEventListener("change", updateQrCodeImage);
+  document.querySelector("#clearQuoteNote")?.addEventListener("click", () => {
+    const noteInput = form.elements.note;
+    noteInput.value = "";
+    draft.note = "";
+    noteInput.focus();
+  });
   form.addEventListener("input", (event) => {
     if (event.target.dataset.line !== undefined) {
       const lineIndex = Number(event.target.dataset.line);
@@ -1344,6 +1353,8 @@ function bindQuoteEditor(draft) {
         if (amountInput) amountInput.value = item.amount;
       }
       updateSummaryPanel(form, draft);
+    } else if (event.target.name === "note") {
+      draft.note = event.target.value;
     } else if (event.target.name === "withholdingPercent") {
       updateSummaryPanel(form, draft);
     }
@@ -2037,9 +2048,9 @@ function renderOriginalDocumentItems(doc) {
         <col class="bill-col-amount">
       </colgroup>
       <tr>
-        <td class="bill-note-cell" colspan="3" rowspan="3">
-          ${documentLabel("note") ? `<strong>${documentLabel("note")} :</strong>` : ""}
-          <div>${note}</div>
+        <td class="bill-note-cell ${note ? "" : "is-empty"}" colspan="3" rowspan="3">
+          ${note && documentLabel("note") ? `<strong>${documentLabel("note")} :</strong>` : ""}
+          ${note ? `<div>${note}</div>` : ""}
         </td>
         <th>${documentLabel("subtotal")}</th>
         <td>${money(subtotal)} บาท</td>
