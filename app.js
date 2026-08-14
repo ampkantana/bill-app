@@ -3,6 +3,10 @@ const SESSION_KEY = "kantana-erp-session";
 const SESSION_MODE_CLOUD = "cloud";
 const CLOUD_CONFIG_KEY = "kantana-erp-cloud-config-v1";
 const CLOUD_TABLE = "app_states";
+const DEFAULT_CLOUD_CONFIG = {
+  supabaseUrl: "https://jsikhekpmqgzhrbocwof.supabase.co",
+  supabaseAnonKey: "sb_publishable_VUGLdN6_8rkGDf_88DYEtw_ItGwgryT",
+};
 const DEFAULT_BILL_NOTE = `-ปรับแก้จำนวน 2 ครั้ง หลังจากส่งครั้งแรก รวมจะได้ภาพไฟนอล ทั้งหมด 3 ครั้ง
 -มัดจำ 70% ก่อนส่งงานครั้งแรก
 -ส่วนที่เหลือหลัง จากแก้ไข้ตามรายละเอียดอีกที`;
@@ -197,11 +201,11 @@ function loadCloudConfig() {
   try {
     const config = JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY) || "{}");
     return {
-      supabaseUrl: normalizeSupabaseUrl(config.supabaseUrl || ""),
-      supabaseAnonKey: isSecretSupabaseKey(config.supabaseAnonKey) ? "" : String(config.supabaseAnonKey || "").trim(),
+      supabaseUrl: normalizeSupabaseUrl(config.supabaseUrl || DEFAULT_CLOUD_CONFIG.supabaseUrl),
+      supabaseAnonKey: isSecretSupabaseKey(config.supabaseAnonKey) ? DEFAULT_CLOUD_CONFIG.supabaseAnonKey : String(config.supabaseAnonKey || DEFAULT_CLOUD_CONFIG.supabaseAnonKey).trim(),
     };
   } catch {
-    return {};
+    return { ...DEFAULT_CLOUD_CONFIG };
   }
 }
 
@@ -269,6 +273,10 @@ function saveCloudConfig(config) {
 function hasCloudConfig() {
   const config = loadCloudConfig();
   return Boolean(config.supabaseUrl && config.supabaseAnonKey);
+}
+
+function hasSavedCloudConfig() {
+  return Boolean(localStorage.getItem(CLOUD_CONFIG_KEY));
 }
 
 function getSupabaseFactory() {
@@ -643,6 +651,7 @@ function app() {
 function renderLogin() {
   const cloudConfig = loadCloudConfig();
   const cloudConfigured = hasCloudConfig();
+  const savedCloudConfig = hasSavedCloudConfig();
   const passwordRecovery = cloudConfigured && isPasswordRecoveryUrl();
   document.querySelector("#app").innerHTML = `
     <main class="login-screen">
@@ -653,14 +662,14 @@ function renderLogin() {
         ${cloudConfigured ? `
           <div class="cloud-config-summary">
             <span>Cloud พร้อมใช้งาน</span>
-            <button class="button ghost" type="button" id="editCloudConfigButton">แก้ไข Cloud config</button>
+            ${savedCloudConfig ? `<button class="button ghost" type="button" id="editCloudConfigButton">แก้ไข Cloud config</button>` : ""}
           </div>
         ` : ""}
-        <form class="cloud-config-form ${cloudConfigured ? "hidden" : ""}" id="cloudConfigForm">
+        ${(!cloudConfigured || savedCloudConfig) ? `<form class="cloud-config-form ${cloudConfigured ? "hidden" : ""}" id="cloudConfigForm">
           <label>Supabase URL<input name="supabaseUrl" value="${cloudConfig.supabaseUrl || ""}" placeholder="https://xxxx.supabase.co"></label>
           <label>Publishable / anon key<input name="supabaseAnonKey" value="${cloudConfig.supabaseAnonKey || ""}" placeholder="sb_publishable_... หรือ eyJ..."></label>
           <button class="button" type="submit">บันทึกค่า Cloud</button>
-        </form>
+        </form>` : ""}
         ${passwordRecovery ? `
         <form class="cloud-login-form" id="resetPasswordForm">
           <label>รหัสผ่านใหม่<input name="password" type="password" autocomplete="new-password" placeholder="อย่างน้อย 6 ตัว"></label>
@@ -685,7 +694,7 @@ function renderLogin() {
     document.querySelector("#cloudConfigForm")?.classList.remove("hidden");
     document.querySelector(".cloud-config-summary")?.classList.add("hidden");
   });
-  document.querySelector("#cloudConfigForm").addEventListener("submit", (event) => {
+  document.querySelector("#cloudConfigForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
     try {
       saveCloudConfig(Object.fromEntries(new FormData(event.target).entries()));
