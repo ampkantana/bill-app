@@ -46,6 +46,7 @@ globalThis.__exports = {
   documentCustomerHtml,
   documentSellerHtml,
   documentNoteHtml,
+  documentBillNote,
   documentLabel,
   documentNumberHtml,
   deleteCustomer,
@@ -65,7 +66,7 @@ globalThis.__exports = {
   renderOriginalDocumentItems,
 };`, sandbox);
 
-const { defaultState, state, documentTypeMeta, documentDateHtml, documentCustomerHtml, documentSellerHtml, documentNoteHtml, documentLabel, documentNumberHtml, deleteCustomer, deleteQuote, deleteInvoice, deletePayment, deleteReceipt, paymentInfoHtml, documentPrintTitle, documentPrintFitClass, calculatePdfContentScale, filteredReceiptHistory, passwordRecoveryRedirectUrl, isPasswordRecoveryUrl, validateNewPassword, renderDocumentLabelInputs, renderOriginalDocumentItems } = sandbox.__exports;
+const { defaultState, state, documentTypeMeta, documentDateHtml, documentCustomerHtml, documentSellerHtml, documentNoteHtml, documentBillNote, documentLabel, documentNumberHtml, deleteCustomer, deleteQuote, deleteInvoice, deletePayment, deleteReceipt, paymentInfoHtml, documentPrintTitle, documentPrintFitClass, calculatePdfContentScale, filteredReceiptHistory, passwordRecoveryRedirectUrl, isPasswordRecoveryUrl, validateNewPassword, renderDocumentLabelInputs, renderOriginalDocumentItems } = sandbox.__exports;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 assert.equal(defaultState.settings.qrCodeImage, "");
@@ -129,6 +130,8 @@ assert.match(sellerHtml, /E-mail/);
 assert.match(documentNoteHtml({ note: "แก้แบบได้ 2 ครั้ง" }), /NOTE/);
 assert.match(documentNoteHtml({ note: "แก้แบบได้ 2 ครั้ง" }), /แก้แบบได้ 2 ครั้ง/);
 assert.equal(documentNoteHtml({ note: "" }), "");
+assert.match(documentBillNote({}), /ปรับแก้จำนวน 2 ครั้ง/);
+assert.equal(documentBillNote({ note: "" }), "");
 
 state.customers = [{ id: "cus_delete", name: "Delete Me" }, { id: "cus_keep", name: "Keep Me" }];
 state.quotes = [{ id: "qt_customer_delete", customerId: "cus_delete", quoteNumber: "QT-2026-0001" }];
@@ -331,7 +334,6 @@ assert.doesNotMatch(denseBillTable, /bill-row-filler/);
 
 const calculatedBillTable = renderOriginalDocumentItems({
   items: [{ description: "EXTERIOR VIEW", quantity: 1, unitPrice: 4000, amount: 4000 }],
-  note: "",
 });
 assert.match(calculatedBillTable, /ปรับแก้จำนวน 2 ครั้ง/);
 assert.match(calculatedBillTable, /มัดจำ 70% ก่อนส่งงานครั้งแรก/);
@@ -339,6 +341,13 @@ assert.match(calculatedBillTable, /ส่วนที่เหลือหลั
 assert.match(calculatedBillTable, /SUBTOTAL[\s\S]*4,000 บาท/);
 assert.match(calculatedBillTable, /WITHHOLDING TAX 3%[\s\S]*120 บาท/);
 assert.match(calculatedBillTable, /AMOUNT[\s\S]*3,880 บาท/);
+
+const blankNoteBillTable = renderOriginalDocumentItems({
+  items: [{ description: "EXTERIOR VIEW", quantity: 1, unitPrice: 4000, amount: 4000 }],
+  note: "",
+});
+assert.doesNotMatch(blankNoteBillTable, /ปรับแก้จำนวน 2 ครั้ง/);
+assert.doesNotMatch(blankNoteBillTable, /มัดจำ 70% ก่อนส่งงานครั้งแรก/);
 
 state.settings.qrCodeImage = "data:image/png;base64,qr-test";
 state.settings.documentLabels.item = "#";

@@ -622,6 +622,13 @@ function documentNoteHtml(doc) {
   return note ? `<div class="document-box note-box">${label ? `<strong>${label}</strong><br>` : ""}${note}</div>` : "";
 }
 
+function documentBillNote(doc) {
+  if (Object.prototype.hasOwnProperty.call(doc, "note")) {
+    return String(doc.note || "").trim();
+  }
+  return DEFAULT_BILL_NOTE;
+}
+
 function paymentInfoHtml() {
   return `
     <div class="payment-panel">
@@ -1254,7 +1261,7 @@ function renderQuoteEditor(draft) {
             <label>ชื่อโปรเจกต์<input name="projectName" value="${draft.projectName || ""}"></label>
             <label>วันที่<input name="issueDate" type="date" value="${draft.issueDate}"></label>
             <label>หัก ณ ที่จ่าย %<input name="withholdingPercent" type="number" min="0" value="${draft.withholdingPercent}"></label>
-            <label class="span-2">หมายเหตุ<textarea name="note">${draft.note || DEFAULT_BILL_NOTE}</textarea></label>
+            <label class="span-2">หมายเหตุ<textarea name="note">${documentBillNote(draft)}</textarea></label>
           </div>
           <div class="actions">
             <button class="button" id="createInlineCustomer" type="button">เพิ่มลูกค้าใหม่ในหน้านี้</button>
@@ -1989,7 +1996,7 @@ function renderOriginalDocumentItems(doc) {
   const withholdingAmount = doc.withholdingAmount ?? calc.withholdingAmount;
   const totalDue = doc.totalDue ?? calc.totalDue;
   const paidAmount = Number(doc.paidAmount || 0);
-  const note = String(doc.note || "").trim() || DEFAULT_BILL_NOTE;
+  const note = documentBillNote(doc);
   const qrHtml = state.settings.qrCodeImage ? `<img class="bill-payment-qr qr-code" src="${state.settings.qrCodeImage}" alt="Payment QR Code">` : "";
   return `
     <table class="bill-line-table ${densityClass}">
