@@ -408,6 +408,10 @@ function isCloudSession() {
 }
 
 async function boot() {
+  if (hasCloudConfig() && isPasswordRecoveryUrl()) {
+    renderLogin();
+    return;
+  }
   if (!isLoggedIn() && hasCloudConfig()) {
     await restoreCloudSession().catch(() => false);
   }

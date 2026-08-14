@@ -198,6 +198,7 @@ assert.match(source, /app_states/);
 assert.match(source, /signInWithPassword/);
 assert.match(source, /resetPasswordForEmail/);
 assert.match(source, /updateUser\(\{ password/);
+assert.match(source, /if \(\s*hasCloudConfig\(\) && isPasswordRecoveryUrl\(\)\s*\)\s*\{[\s\S]*renderLogin\(\);[\s\S]*return;[\s\S]*\}[\s\S]*restoreCloudSession/);
 assert.match(source, /id="forgotPasswordButton"/);
 assert.match(source, /id="resetPasswordForm"/);
 assert.match(source, /migrateLocalDataToCloud/);
